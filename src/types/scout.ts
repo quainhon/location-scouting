@@ -40,6 +40,11 @@ export interface ScoutLocation {
   status: LocationStatus;
   created_at: string;
   updated_at: string;
+  scouting_status?: 'not_scouted' | 'candidate' | 'scouted' | 'approved';
+  access?: string;
+  photos?: { id: string; url: string; caption: string }[];
+  checklist?: { id: string; label: string; done: boolean }[];
+  history?: { id: string; at: string; action: string }[];
 }
 
 export type TourStatus = 'draft' | 'planning' | 'approved' | 'completed' | 'archived';

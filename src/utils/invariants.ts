@@ -17,13 +17,13 @@ export function addStopToTour(
 ): Tour {
   // Check if already in tour
   const exists = tour.stops.some((s) => s.location_id === location.id);
-  if (exists) {
+  if (exists || location.status === 'archived') {
     return tour;
   }
 
   const nextOrder = tour.stops.length + 1;
   const newStop: TourStop = {
-    id: `stop-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    id: crypto.randomUUID(),
     tour_id: tour.id,
     location_id: location.id,
     stop_order: nextOrder,
@@ -72,12 +72,12 @@ export function reorderTourStops(tour: Tour, orderedStopIds: string[]): Tour {
   const stopMap = new Map(tour.stops.map((s) => [s.id, s]));
   const reordered: TourStop[] = [];
 
-  orderedStopIds.forEach((id, index) => {
+  [...new Set(orderedStopIds)].forEach((id) => {
     const stop = stopMap.get(id);
     if (stop) {
       reordered.push({
         ...stop,
-        stop_order: index + 1,
+        stop_order: reordered.length + 1,
       });
     }
   });

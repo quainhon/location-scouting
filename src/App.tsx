@@ -1,7 +1,7 @@
-import { ScoutWorkspace } from './components/ScoutWorkspace';
+import { Workspace } from './Workspace';
 
 export function App() {
-  return <ScoutWorkspace />;
+  return <Workspace />;
 }
 
 export default App;

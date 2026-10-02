@@ -8,6 +8,7 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+data/*.sqlite*
 dist
 dist-ssr
 *.local
@@ -22,3 +23,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Project-local tooling and temporary files
+.npm-cache/
+.tmp/
+node_modules.before-repair/

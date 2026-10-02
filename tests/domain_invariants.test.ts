@@ -146,6 +146,15 @@ describe('Location Scouting Domain Invariants', () => {
     expect(restored.status).toBe('active');
   });
 
+  it('rejects archived locations and keeps reordering unique and contiguous', () => {
+    expect(addStopToTour(initialTour, archiveLocation(mockLocation1)).stops).toHaveLength(0);
+    let tour = addStopToTour(initialTour, mockLocation1);
+    tour = addStopToTour(tour, mockLocation2);
+    const reordered = reorderTourStops(tour, ['unknown', tour.stops[1].id, tour.stops[1].id]);
+    expect(reordered.stops.map(s => s.location_id)).toEqual(['loc-2', 'loc-1']);
+    expect(reordered.stops.map(s => s.stop_order)).toEqual([1, 2]);
+  });
+
   it('INVARIANT 6: Hydration links TourStops to ScoutLocations cleanly', () => {
     let tour = addStopToTour(initialTour, mockLocation1);
     tour = addStopToTour(tour, mockLocation2);

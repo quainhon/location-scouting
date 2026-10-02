@@ -1,0 +1,75 @@
+/* Quài Nhơn brand skin. Presentation only; existing layout and behavior are preserved. */
+@font-face{font-family:'Patrick Hand';src:url('/branding/PatrickHand-Regular.ttf') format('truetype');font-style:normal;font-weight:400;font-display:swap}
+@font-face{font-family:'Itim';src:url('/branding/Itim-Regular.ttf') format('truetype');font-style:normal;font-weight:400;font-display:swap}
+html:root{--qn-forest:#2d432b;--qn-ink:#35472f;--qn-paper:#fbf6e9;--qn-sand:#efe4cd;--qn-border:#dfd8c4;--qn-muted:#7b806b;--qn-sea:#247c99;font-family:'Patrick Hand',cursive;color:var(--qn-ink);background:var(--qn-paper)}
+html body,html input,html textarea,html .leaflet-container{font-family:'Patrick Hand',cursive;color:var(--qn-ink)}
+html h1,html h2,html h3,html button,html .button,html select,html .brand,html .stop-text strong,html .map-caption strong,html .number,html .pin>span{font-family:'Itim',cursive;font-weight:400}
+html .app{background:var(--qn-paper)}
+html .app-header{background:linear-gradient(105deg,#fcf8ed,#f4ecd9);border-color:var(--qn-border)}
+html .brand{color:var(--qn-forest)}
+html .brand span,html .brand strong{font-weight:400}
+html .brand-mark{width:35px;height:35px;flex-shrink:0;background:url('/branding/quai-nhon-symbol.jpeg') center/120% no-repeat;mix-blend-mode:multiply}
+html .brand-mark>svg{visibility:hidden}
+html .sidebar,html .detail-panel{background:var(--qn-paper);border-color:var(--qn-border)}
+html .stops-scroll,html .library-nav,html .tab-content{background-image:radial-gradient(ellipse at 0 0,#e7dab52b,transparent 70%)}
+html .sidebar-heading,html .library-nav{color:var(--qn-forest);border-color:#e9e1ce}
+html .detail-empty{background:radial-gradient(ellipse at 70% 35%,#eee2c9,transparent 68%)}
+html button,html .button,html input,html select,html textarea{background-color:#fffdf5;color:var(--qn-ink);border-color:var(--qn-border)}
+html button:hover,html .button:hover{background-color:#f0ead9;border-color:#b8c0a4}
+html button:focus-visible,html a:focus-visible,html input:focus-visible,html select:focus-visible,html textarea:focus-visible{outline-color:#81976c}
+html .primary{background:var(--qn-forest);border-color:var(--qn-forest);color:#fff9e9}
+html .primary:hover{background:#415b36;border-color:#415b36}
+html .icon-button{background:transparent;border-color:transparent;color:#727c66}
+html .tour-switch,html .map-search,html .search-results,html .map-layers,html .map-controls>button,html .map-controls>div{background:#fffdf4;border-color:var(--qn-border)}
+html .tour-switch select,html .map-search input,html .status-control select{background:transparent}
+html .save-status,html .muted,html .helper,html .empty,html .empty p,html .detail-empty p,html .empty-foot,html .detail-kicker,html .tour-summary,html .history-item time{color:var(--qn-muted)}
+html .connection-dot{background:#668552}
+html .header-actions .avatar{background:#e5e9d7;color:var(--qn-forest)}
+html .stop-card{background:linear-gradient(115deg,#fffdf7,#f8f2e4);border-color:#e9dfcc}
+html .stop-card.selected{background:#eef0df;border-color:#a8b791;box-shadow:inset 3px 0 #536e41}
+html .stop-select,html .stop-select:hover,html .stop-order button,html .library-nav button{background:transparent}
+html .stop-order button,html .grip{color:#919881}
+html .status-line,html .facts dt,html .detail-section p,html .detail-section ul{color:#6c7563}
+html .number{background:var(--qn-sea);color:#fffdf3}
+html .selected .number,html .detail-heading .number{background:var(--qn-forest)}
+html .add-stop{background:#e9eddc;border-color:#dde4cf;color:var(--qn-forest)}
+html .nav-icon,html .count,html .empty-icon{background:#eeeadc;color:#5e754c}
+html .empty h3,html .empty-illustration{color:#6c8158}
+html .empty-illustration{background:#efecd9;border-color:#dddac3}
+html .empty-illustration>span{background:var(--qn-forest);border-color:var(--qn-paper);color:#fff9e9}
+html .map-layers button{background:transparent;color:#7b806b}
+html .map-layers button.active{background:#e7ebd8;color:var(--qn-forest)}
+html .map-controls button{background:#fffdf4;color:var(--qn-forest)}
+html .map-controls>div button+button{border-color:var(--qn-border)}
+html .map-caption{background:#fbf4e4}
+html .map-caption div>span{color:var(--qn-muted)}
+html .caption-icon{color:var(--qn-sea)}
+html .pin{background:var(--qn-sea);border-color:#fff9e9}
+html .pin.selected{background:var(--qn-forest)}
+html .pin.library-pin{background:#71855d}
+html .leaflet-overlay-pane path{stroke:var(--qn-sea)}
+html .leaflet-control-attribution{font-family:'Patrick Hand',cursive;background:#fbf6e9e6!important;color:#65725d!important}
+html .leaflet-control-attribution a{color:var(--qn-sea)!important}
+html .detail-toolbar .subtle,html .status-control,html .note-box,html .thumbnails .add-photo,html .detail-actions button{background:#f0eddf}
+html .photo-placeholder{background:#eee9da;color:#9a9c84}
+html .tabs,html .modal-head{background:var(--qn-paper);border-color:var(--qn-border)}
+html .tabs button{background:transparent;color:#747d67}
+html .tabs button.active{color:var(--qn-forest);border-bottom-color:#536e41}
+html .thumbnails>button.active{border-color:var(--qn-sea)}
+html .facts svg,html .detail-section>svg{color:var(--qn-forest)}
+html .detail-actions,html .form-actions,html .check-row{border-color:#e6dfca}
+html .detail-actions .danger{color:#b64b48;background:#f9ebe1;border-color:#f0dace}
+html .folder-link{background:#eaf0e1;color:#506b3b;border-color:#d8e2cb}
+html .editor-form label{color:#68745d}
+html .library-card{border-color:var(--qn-border);background:#fffcf3}
+html .library-card p,html .search-results small{color:var(--qn-muted)}
+html .input-icon{border-color:var(--qn-border);color:#81906f}
+html .check-row input,html .inline-check input{accent-color:#536e41}
+html .done{color:#91987e}
+html .history-item>span{background:#8ca570}
+html .toast{background:var(--qn-forest);color:#fff9e9}
+html dialog{background:var(--qn-paper);color:var(--qn-ink);border-color:var(--qn-border)}
+html dialog::backdrop{background:#263d2b55}
+html input::placeholder,html textarea::placeholder{color:#959980}
+html ::-webkit-scrollbar-thumb{background:#d5d5bd}
+@media(max-width:650px){html .brand-mark{width:29px;height:29px}html .form-actions{background:var(--qn-paper)}}
