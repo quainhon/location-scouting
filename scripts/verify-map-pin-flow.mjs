@@ -1,10 +1,11 @@
-import { spawn } from 'node:child_process';
+import { spawn, execSync } from 'node:child_process';
 import { rmSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const EDGE_PATH = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 const PROFILE_DIR = resolve('E:/Tools/qn-location-scouting/.tmp/edge-test-profile');
 const TARGET_URL = 'https://locationscout.quainhon.com/';
+const WRANGLER_CWD = 'E:/Tools/Vaults/quai-nhon/quai-nhon-dev';
 
 try { rmSync(PROFILE_DIR, { recursive: true, force: true }); } catch {}
 mkdirSync(PROFILE_DIR, { recursive: true });
@@ -21,6 +22,7 @@ const edgeProc = spawn(EDGE_PATH, [
 let ws;
 let msgId = 1;
 const pending = new Map();
+const createdLocationIds = new Set();
 
 function send(method, params = {}) {
   return new Promise((res, rej) => {
@@ -44,6 +46,22 @@ async function evaluate(expression) {
 
 async function sleep(ms) {
   return new Promise(r => setTimeout(r, ms));
+}
+
+function cleanupSyntheticLocation(locationId) {
+  if (!locationId) return;
+  console.log(`[CLEANUP] Purging synthetic test fixture ${locationId} from D1...`);
+  const sql = `DELETE FROM location_history WHERE location_id = '${locationId}'; DELETE FROM location_photos WHERE location_id = '${locationId}'; DELETE FROM location_checklist WHERE location_id = '${locationId}'; DELETE FROM tour_stops WHERE location_id = '${locationId}'; DELETE FROM scout_locations WHERE id = '${locationId}';`;
+  try {
+    execSync(`npx wrangler d1 execute location-scout-db --remote --command="${sql}"`, {
+      cwd: WRANGLER_CWD,
+      encoding: 'utf8',
+      stdio: 'pipe'
+    });
+    console.log(`[CLEANUP] Successfully purged test fixture ${locationId} from D1.`);
+  } catch (err) {
+    console.error(`[CLEANUP WARNING] Failed to purge ${locationId}:`, err.message);
+  }
 }
 
 async function main() {
@@ -88,6 +106,15 @@ async function main() {
       document.body.innerText.includes('Quài Nhơn')
     `);
     console.log('Page rendered app:', isConnected);
+
+    // Baseline: inspect existing production locations so we preserve unrelated production data
+    const baselineApi = await evaluate(`fetch('/api/workspace').then(r => r.json())`);
+    const initialCount = baselineApi.locations.length;
+    const initialLocationIds = new Set(baselineApi.locations.map(l => l.id));
+    console.log(`Baseline production state: revision=${baselineApi.revision}, existing spots=${initialCount}`);
+    if (initialCount > 0) {
+      console.log('Existing production spots to preserve:', baselineApi.locations.map(l => `[${l.name} (${l.id})]`).join(', '));
+    }
 
     // Get map bounds and location on screen
     const mapRect = await evaluate(`
@@ -170,12 +197,14 @@ async function main() {
     if (modalOpenAfterCancel) throw new Error('Modal should be closed after Cancel!');
     if (draftPinsAfterCancel !== 0) throw new Error('Draft pin should be removed on Cancel!');
 
-    // Verify nothing saved to API
+    // Verify nothing saved to API beyond initial count
     const apiStateAfterCancel = await evaluate(`
       fetch('/api/workspace').then(r => r.json()).then(d => ({ revision: d.revision, count: d.locations.length }))
     `);
     console.log('API state after cancel:', apiStateAfterCancel);
-    if (apiStateAfterCancel.count !== 0) throw new Error('Unexpected locations persisted on Cancel!');
+    if (apiStateAfterCancel.count !== initialCount) {
+      throw new Error(`Expected count ${initialCount} after Cancel, got ${apiStateAfterCancel.count}`);
+    }
 
     // ────────────────────────────────────────────────────────────────────────
     // Step C: Touch tap on map -> draft pin and modal with coordinates
@@ -185,8 +214,6 @@ async function main() {
     const touchY = Math.round(mapRect.y + mapRect.height * 0.55);
     console.log(`Touch tap at (${touchX}, ${touchY})...`);
 
-    // In Leaflet, touch taps emit touchstart -> touchend -> click on desktop-emulated touch or mouse
-    // Let's use dispatchTouchEvent or mouse click for touch test
     await send('Input.dispatchTouchEvent', {
       type: 'touchStart',
       touchPoints: [{ x: touchX, y: touchY }]
@@ -196,7 +223,6 @@ async function main() {
       type: 'touchEnd',
       touchPoints: []
     });
-    // Leaflet also listens to click on touch
     await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: touchX, y: touchY, button: 'left', clickCount: 1 });
     await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: touchX, y: touchY, button: 'left', clickCount: 1 });
     await sleep(800);
@@ -208,7 +234,7 @@ async function main() {
     // Step D: Edit fields and Save draft location
     // ────────────────────────────────────────────────────────────────────────
     console.log('\n--- Step D: Edit fields and Save new location ---');
-    const testLocationName = 'Bãi Rạng - Điểm quay bình minh';
+    const testLocationName = 'Bãi Rạng - Điểm quay bình minh (E2E Test)';
     const testRegion = 'Quy Nhơn';
     const testNotes = 'Góc máy đón bình minh, bờ cát mịn không đá ngầm.';
 
@@ -250,7 +276,7 @@ async function main() {
     `);
     console.log('API revision after save:', apiAfterSave.revision);
     console.log('Locations count in API:', apiAfterSave.locations.length);
-    const savedLoc = apiAfterSave.locations[0];
+    const savedLoc = apiAfterSave.locations.find(l => l.name === testLocationName);
     console.log('Saved location in API:', {
       id: savedLoc?.id,
       name: savedLoc?.name,
@@ -258,8 +284,12 @@ async function main() {
       coordinates: savedLoc?.coordinates
     });
 
-    if (apiAfterSave.locations.length !== 1) throw new Error('Location was not saved to database!');
-    if (savedLoc.name !== testLocationName) throw new Error('Saved name mismatch!');
+    if (!savedLoc) throw new Error('Location was not saved to database!');
+    if (apiAfterSave.locations.length !== initialCount + 1) {
+      throw new Error(`Expected ${initialCount + 1} locations, got ${apiAfterSave.locations.length}`);
+    }
+    createdLocationIds.add(savedLoc.id);
+    console.log(`Registered created test fixture ID for cleanup: ${savedLoc.id}`);
 
     // Check selected spot in UI is the newly created spot
     const selectedSpotInUI = await evaluate(`
@@ -277,23 +307,23 @@ async function main() {
     // Step E: Existing marker click selects it, doesn't create draft
     // ────────────────────────────────────────────────────────────────────────
     console.log('\n--- Step E: Existing marker click test ---');
-    // First deselect by clicking close button on detail panel
     await evaluate(`document.querySelector('.detail-heading button[aria-label="Đóng chi tiết"]')?.click()`);
     await sleep(500);
 
     const selectionClosed = await evaluate(`!document.querySelector('.detail-heading')`);
     console.log('Detail panel closed:', selectionClosed);
 
-    // Now click the marker on the map
+    // Target the marker corresponding specifically to our test spot
     const markerClicked = await evaluate(`
       (() => {
-        const marker = document.querySelector('.leaflet-marker-icon:not(.draft-pin)');
+        const marker = document.querySelector('.leaflet-marker-icon[title="${testLocationName}"]') ||
+                       document.querySelector('.leaflet-marker-icon:not(.draft-pin)');
         if (!marker) return false;
         marker.click();
         return true;
       })()
     `);
-    console.log('Clicked existing marker:', markerClicked);
+    console.log('Clicked test marker:', markerClicked);
     await sleep(800);
 
     const draftPinsAfterMarkerClick = await evaluate(`document.querySelectorAll('.draft-pin').length`);
@@ -307,7 +337,9 @@ async function main() {
 
     if (draftPinsAfterMarkerClick !== 0) throw new Error('Marker click should NOT create a draft pin!');
     if (dialogOpenAfterMarkerClick) throw new Error('Marker click should NOT open create dialog!');
-    if (detailPanelAfterMarkerClick !== testLocationName) throw new Error('Marker click should select the existing spot!');
+    if (detailPanelAfterMarkerClick !== testLocationName) {
+      throw new Error(`Expected detail panel to select ${testLocationName}, got ${detailPanelAfterMarkerClick}`);
+    }
 
     // ────────────────────────────────────────────────────────────────────────
     // Step F: Edit existing spot through the panel
@@ -341,8 +373,10 @@ async function main() {
       fetch('/api/workspace').then(r => r.json())
     `);
     console.log('API revision after edit:', apiAfterEdit.revision);
-    console.log('Updated location scouting_notes:', apiAfterEdit.locations[0]?.scouting_notes);
-    if (apiAfterEdit.locations[0]?.scouting_notes !== updatedNotes) {
+    const editedLoc = apiAfterEdit.locations.find(l => l.id === savedLoc.id);
+    if (!editedLoc) throw new Error('Saved test location not found in API after edit!');
+    console.log('Updated test location scouting_notes:', editedLoc.scouting_notes);
+    if (editedLoc.scouting_notes !== updatedNotes) {
       throw new Error('Location edit did not persist!');
     }
 
@@ -350,13 +384,12 @@ async function main() {
     // Step G: Stale revision conflict error handling
     // ────────────────────────────────────────────────────────────────────────
     console.log('\n--- Step G: Stale revision conflict test ---');
-    // Direct PUT with old revision should return 409
     const conflictResult = await evaluate(`
       fetch('/api/workspace', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          revision: 0, // Stale! Current revision is > 1
+          revision: 0,
           locations: [],
           tours: []
         })
@@ -382,14 +415,51 @@ async function main() {
       })()
     `);
     console.log('State after full reload:', stateAfterReload);
-    if (stateAfterReload.markerCount !== 1) {
-      throw new Error(`Expected 1 marker after reload, got ${stateAfterReload.markerCount}`);
+    if (stateAfterReload.markerCount !== initialCount + 1) {
+      throw new Error(`Expected ${initialCount + 1} markers after reload, got ${stateAfterReload.markerCount}`);
     }
 
+    // ────────────────────────────────────────────────────────────────────────
+    // Step I: Test-fixture hygiene & cleanup
+    // Clean up all synthetic locations created during this run.
+    // ────────────────────────────────────────────────────────────────────────
+    console.log('\n--- Step I: Test-fixture hygiene & cleanup ---');
+    for (const id of createdLocationIds) {
+      cleanupSyntheticLocation(id);
+    }
+    createdLocationIds.clear();
+    await sleep(1500);
+
+    // Verify production database no longer contains any synthetic test data
+    const apiAfterCleanup = await evaluate(`
+      fetch('/api/workspace').then(r => r.json())
+    `);
+    console.log('Locations count in API after cleanup:', apiAfterCleanup.locations.length);
+    const remainingTestFixtures = apiAfterCleanup.locations.filter(l => l.name.includes('(E2E Test)'));
+    if (remainingTestFixtures.length !== 0) {
+      throw new Error(`Synthetic test data still present after cleanup: ${remainingTestFixtures.length}`);
+    }
+    // Verify all baseline production locations are completely preserved
+    const remainingBaselineIds = new Set(apiAfterCleanup.locations.map(l => l.id));
+    for (const id of initialLocationIds) {
+      if (!remainingBaselineIds.has(id)) {
+        throw new Error(`CRITICAL: Baseline production location ${id} was accidentally removed!`);
+      }
+    }
+    console.log(`Unrelated production data completely preserved (${initialCount} baseline spots intact).`);
+    console.log('Database hygiene confirmed clean! Zero test fixtures remaining in production. ✅');
+
     console.log('\n========================================');
-    console.log('ALL VERIFICATION CHECKS PASSED CLEANLY! ✅');
+    console.log('ALL VERIFICATION CHECKS & CLEANUP PASSED! ✅');
     console.log('========================================\n');
   } finally {
+    // Safety net: purge any remaining created test IDs even if assertion failed
+    if (createdLocationIds.size > 0) {
+      console.log(`[SAFETY NET] Cleaning up ${createdLocationIds.size} orphaned test fixtures...`);
+      for (const id of createdLocationIds) {
+        try { cleanupSyntheticLocation(id); } catch {}
+      }
+    }
     if (ws) ws.close();
     edgeProc.kill('SIGKILL');
   }
