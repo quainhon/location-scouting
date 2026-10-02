@@ -107,66 +107,8 @@ function validate(state: unknown): void {
 // ──────────────────────────────────────────────────────────────────────────────
 // D1 read/write (mirrors server/store.mjs logic)
 // ──────────────────────────────────────────────────────────────────────────────
-async function initSchema(db: D1Database): Promise<void> {
-  // Run schema idempotently — same DDL as database/schema.sql
-  await db.exec(`PRAGMA foreign_keys = ON;
-CREATE TABLE IF NOT EXISTS workspace_meta (
-  singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
-  schema_version INTEGER NOT NULL DEFAULT 1,
-  revision INTEGER NOT NULL DEFAULT 0
-);
-INSERT OR IGNORE INTO workspace_meta(singleton) VALUES (1);
-CREATE TABLE IF NOT EXISTS scout_locations (
-  id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE,
-  name TEXT NOT NULL CHECK(length(trim(name)) > 0), region TEXT NOT NULL DEFAULT '',
-  latitude REAL NOT NULL CHECK(latitude BETWEEN -90 AND 90),
-  longitude REAL NOT NULL CHECK(longitude BETWEEN -180 AND 180),
-  description TEXT NOT NULL DEFAULT '', scouting_notes TEXT NOT NULL DEFAULT '',
-  camera_angles TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(camera_angles)),
-  best_time_to_shoot TEXT NOT NULL DEFAULT '',
-  drone_permitted INTEGER NOT NULL DEFAULT 0 CHECK(drone_permitted IN (0,1)),
-  drive_reference TEXT NOT NULL DEFAULT '{"asset_count":0}' CHECK(json_valid(drive_reference)),
-  tags TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(tags)),
-  status TEXT NOT NULL CHECK(status IN ('active','archived')),
-  scouting_status TEXT NOT NULL DEFAULT 'not_scouted' CHECK(scouting_status IN ('not_scouted','candidate','scouted','approved')),
-  access TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS tours (
-  id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE,
-  title TEXT NOT NULL CHECK(length(trim(title)) > 0),
-  description TEXT NOT NULL DEFAULT '',
-  status TEXT NOT NULL CHECK(status IN ('draft','planning','approved','completed','archived')),
-  production_week TEXT NOT NULL DEFAULT '', target_date TEXT,
-  assigned_crew TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(assigned_crew)),
-  created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS tour_stops (
-  id TEXT PRIMARY KEY,
-  tour_id TEXT NOT NULL REFERENCES tours(id) ON DELETE RESTRICT,
-  location_id TEXT NOT NULL REFERENCES scout_locations(id) ON DELETE RESTRICT,
-  stop_order INTEGER NOT NULL CHECK(stop_order >= 1),
-  target_arrival_time TEXT,
-  planned_duration_minutes INTEGER NOT NULL CHECK(planned_duration_minutes >= 0),
-  focus_scenes TEXT NOT NULL DEFAULT '', notes TEXT,
-  status TEXT NOT NULL CHECK(status IN ('scheduled','arrived','filmed','skipped')),
-  ai_suggested INTEGER NOT NULL DEFAULT 0 CHECK(ai_suggested IN (0,1)),
-  approved_by_human INTEGER NOT NULL DEFAULT 0 CHECK(approved_by_human IN (0,1)),
-  UNIQUE(tour_id, stop_order), UNIQUE(tour_id, location_id)
-);
-CREATE INDEX IF NOT EXISTS tour_stops_location ON tour_stops(location_id);
-CREATE TABLE IF NOT EXISTS location_photos (
-  id TEXT PRIMARY KEY, location_id TEXT NOT NULL REFERENCES scout_locations(id),
-  position INTEGER NOT NULL, url TEXT NOT NULL, caption TEXT NOT NULL DEFAULT ''
-);
-CREATE TABLE IF NOT EXISTS location_checklist (
-  id TEXT PRIMARY KEY, location_id TEXT NOT NULL REFERENCES scout_locations(id),
-  position INTEGER NOT NULL, label TEXT NOT NULL, done INTEGER NOT NULL CHECK(done IN (0,1))
-);
-CREATE TABLE IF NOT EXISTS location_history (
-  id TEXT PRIMARY KEY, location_id TEXT NOT NULL REFERENCES scout_locations(id),
-  at TEXT NOT NULL, action TEXT NOT NULL
-);`);
-}
+// Schema is pre-applied via: wrangler d1 execute location-scout-db --remote --file=database/schema.sql
+// No runtime DDL needed — avoids PRAGMA and multi-statement exec() limitations in D1.
 
 async function readWorkspace(db: D1Database) {
   const meta = await db.prepare('SELECT revision FROM workspace_meta').first<{ revision: number }>();
@@ -312,8 +254,6 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   const db = env.location_scout_db;
 
   try {
-    await initSchema(db);
-
     if (request.method === 'GET') {
       return json(200, await readWorkspace(db));
     }
