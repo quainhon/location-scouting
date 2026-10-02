@@ -2,18 +2,20 @@ import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { LocateFixed, Minus, Plus } from 'lucide-react';
-import type { ScoutLocation, HydratedTourStop } from '../types/scout';
-export function ScoutMap({ locations, stops, selectedId, onSelect, fitSignal }: { locations: ScoutLocation[]; stops: HydratedTourStop[]; selectedId: string; onSelect: (id: string) => void; fitSignal: number }) {
+import type { ScoutLocation, HydratedTourStop, GeoPoint } from '../types/scout';
+export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft, draftPoint, fitSignal }: { locations: ScoutLocation[]; stops: HydratedTourStop[]; selectedId: string; onSelect: (id: string) => void; onCreateDraft: (point: GeoPoint) => void; draftPoint: GeoPoint | null; fitSignal: number }) {
   const root = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const [layer, setLayer] = useState<'satellite' | 'map'>('satellite');
   const [tileError, setTileError] = useState(false);
   const [retry, setRetry] = useState(0);
   const select = useRef(onSelect); select.current = onSelect;
+  const createDraft = useRef(onCreateDraft); createDraft.current = onCreateDraft;
   useEffect(() => {
     if (!root.current) return;
     const instance = L.map(root.current, { zoomControl: false }).setView([14.03, 109.17], 9);
     map.current = instance;
+    instance.on('click', (event: L.LeafletMouseEvent) => createDraft.current({ lat: event.latlng.lat, lng: event.latlng.lng }));
     const observer = new ResizeObserver(() => instance.invalidateSize()); observer.observe(root.current);
     return () => { observer.disconnect(); instance.remove(); map.current = null; };
   }, []);
@@ -32,10 +34,15 @@ export function ScoutMap({ locations, stops, selectedId, onSelect, fitSignal }: 
       const stop = stops.find(s => s.location_id === l.id);
       const icon = L.divIcon({ className: 'map-marker', html: `<span class="pin ${selectedId === l.id ? 'selected' : ''} ${!stop ? 'library-pin' : ''}"><span>${stop?.stop_order || '•'}</span></span>`, iconSize: [38, 48], iconAnchor: [19, 46] });
       const tooltip = document.createElement('span'); tooltip.textContent = l.name;
-      L.marker([l.coordinates.lat, l.coordinates.lng], { icon, title: l.name, keyboard: true }).bindTooltip(tooltip, { direction: 'right', offset: [18, -20] }).on('click', () => select.current(l.id)).addTo(group);
+      L.marker([l.coordinates.lat, l.coordinates.lng], { icon, title: l.name, keyboard: true, bubblingMouseEvents: false }).bindTooltip(tooltip, { direction: 'right', offset: [18, -20] }).on('click', () => select.current(l.id)).addTo(group);
     });
+    if (draftPoint) {
+      const draftIcon = L.divIcon({ className: 'map-marker', html: '<span class="pin draft-pin"><span>+</span></span>', iconSize: [38, 48], iconAnchor: [19, 46] });
+      const draftTooltip = document.createElement('span'); draftTooltip.textContent = 'Điểm mới — chưa lưu';
+      L.marker([draftPoint.lat, draftPoint.lng], { icon: draftIcon, keyboard: false, interactive: false }).bindTooltip(draftTooltip, { permanent: false, direction: 'right', offset: [18, -20] }).addTo(group);
+    }
     return () => { group.remove(); };
-  }, [locations, stops, selectedId]);
+  }, [locations, stops, selectedId, draftPoint]);
   function fit() {
     const points = stops.length ? stops.map(s => s.location) : locations.filter(l => l.status === 'active');
     if (points.length) map.current?.fitBounds(L.latLngBounds(points.map(l => [l.coordinates.lat, l.coordinates.lng])), { padding: [65, 85], maxZoom: 14 });
