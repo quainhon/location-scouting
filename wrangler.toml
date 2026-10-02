@@ -1,0 +1,13 @@
+# Quài Nhơn Location Scout — Cloudflare Pages
+# Binds D1 database for the /api/workspace Pages Function.
+# This file does NOT configure a Worker; it configures the Pages project binding.
+
+name = "location-scouting"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-10-02"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "location_scout_db"
+database_name = "location-scout-db"
+database_id = "287042cd-e607-4a3f-9e2e-58ac830eedd1"
