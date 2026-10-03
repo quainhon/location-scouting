@@ -136,6 +136,10 @@ async function main() {
     // Step A: Mouse click on map -> draft pin and modal should appear
     // ────────────────────────────────────────────────────────────────────────
     console.log('\n--- Step A: Mouse click on map ---');
+    // If Astra place-pin-button is present, activate placing mode
+    await evaluate(`document.querySelector('.place-pin-button')?.click()`);
+    await sleep(300);
+
     const clickX = Math.round(mapRect.x + mapRect.width * 0.45);
     const clickY = Math.round(mapRect.y + mapRect.height * 0.45);
     console.log(`Clicking at (${clickX}, ${clickY})...`);
@@ -210,6 +214,10 @@ async function main() {
     // Step C: Touch tap on map -> draft pin and modal with coordinates
     // ────────────────────────────────────────────────────────────────────────
     console.log('\n--- Step C: Touch tap on map ---');
+    // If Astra place-pin-button is present, activate placing mode
+    await evaluate(`document.querySelector('.place-pin-button')?.click()`);
+    await sleep(300);
+
     const touchX = Math.round(mapRect.x + mapRect.width * 0.55);
     const touchY = Math.round(mapRect.y + mapRect.height * 0.55);
     console.log(`Touch tap at (${touchX}, ${touchY})...`);
