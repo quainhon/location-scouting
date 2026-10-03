@@ -52,7 +52,7 @@ Database mặc định ở `data/scout.sqlite`, không được commit. Có th�
 
 ## Phạm vi hoạt động
 
-Ảnh và bản đồ cần Internet. Bản đồ nét đứt thể hiện thứ tự điểm; chưa tính đường lái xe, quãng đường hay ETA. Google Drive hoạt động bằng liên kết thư mục, chưa tích hợp OAuth. Chưa có đăng nhập, chia sẻ đa người dùng hoặc đồng bộ QNCC; file schema dành cho bước tích hợp này.
+Ảnh, bản đồ và tính tuyến cần Internet. Tuyến ô tô lấy từ OSRM/FOSSGIS theo đúng thứ tự điểm, có quãng đường và thời gian di chuyển ước tính (không tính thời gian dừng). Khi không có tuyến, giao diện báo lỗi; không thay bằng đường thẳng giả. Tọa độ các điểm được gửi đến dịch vụ routing khi mở tour có ít nhất hai điểm. Google Drive hoạt động bằng liên kết thư mục, chưa tích hợp OAuth. Chưa có đăng nhập, chia sẻ đa người dùng hoặc đồng bộ QNCC; file schema dành cho bước tích hợp này.
 
 ## Kiểm thử
 
@@ -64,3 +64,18 @@ npm run build
 Vitest kiểm tra bất biến miền dữ liệu. Node test kiểm tra schema, persistence sau mở lại, archive/restore, conflict, validation và transaction rollback. Test dùng database riêng, không seed dữ liệu vào bản người dùng.
 
 Nguồn bản đồ: [Leaflet](https://leafletjs.com/reference), [Esri imagery attribution](https://support.esri.com/en-us/knowledge-base/what-is-the-correct-way-to-cite-an-arcgis-online-basemap-000012040), [OpenStreetMap](https://www.openstreetmap.org/copyright).
+
+
+## Mobile và tuyến đường
+
+- Điện thoại mở ở màn **Chọn lộ trình của bạn**. Dropdown chỉ chứa các tour thật đã lưu, không seed tour mẫu.
+- **Xem tất cả spots** cho chọn nhiều địa điểm đang hoạt động, đổi thứ tự, đặt tên rồi tạo một tour mới trong một lần lưu. Địa điểm và tour cũ được giữ nguyên.
+- Trong tour: map chiếm không gian chính, danh sách điểm có thể mở/thu gọn. Chọn pin zoom tới mức 17 và hiện thẻ nhỏ; **Chi tiết** mở panel ghi chú/ảnh/checklist hiện có.
+- Kéo một ngón, zoom hai ngón hoặc nút +/−. **Thêm spot trên map** bật chế độ đặt pin; chạm bình thường không mở form. **Xem toàn bộ lộ trình** bao gồm cả geometry của đường đi đã tải.
+- Bản đồ đường phố là mặc định. Satellite yêu cầu `blankTile=false`, dùng mức ảnh gốc tối đa 17 rồi phóng ảnh khi zoom gần hơn; tự chuyển về Map khi nhà cung cấp thiếu ảnh. Mức zoom giao diện tối đa 20.
+- Routing: `https://routing.openstreetmap.de/routed-car/route/v1/driving/`, tối đa 100 điểm/lần, giữ thứ tự, không tự tối ưu lại. Cache bộ nhớ 10 phút/40 tuyến; debounce 1,1 giây, giới hạn nhịp request, timeout 15 giây. Kết quả cũ bị bỏ khi tour hoặc tọa độ thay đổi.
+- Dịch vụ công cộng dành cho tải nhẹ, không có cam kết uptime. Nguồn và chính sách: [FOSSGIS](https://routing.openstreetmap.de/about.html), [OSRM API](https://project-osrm.org/docs/v5.24.0/api/), [Esri blankTile](https://developers.arcgis.com/rest/services-reference/enterprise/map-tile/).
+- Thay đổi này không thêm trường lưu trữ và không đổi schema/D1 adapter; `database/schema.sql` vẫn là schema hiện hành. Không triển khai lên hosting trong bước này.
+
+PC cũng dùng dropdown lộ trình, nút Xem tất cả spots và chọn nhiều spots để tạo tour theo thứ tự. Scout Library ở thanh bên vẫn cho xem chi tiết / thêm điểm vào tour hiện tại.
+

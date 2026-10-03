@@ -32,6 +32,7 @@ export function addStopToTour(
     target_arrival_time: params.target_arrival_time,
     notes: params.notes,
     status: 'scheduled',
+    ai_suggested: false,
     approved_by_human: true,
   };
 
@@ -165,3 +166,15 @@ export function hydrateTourStops(
     })
     .filter((s): s is HydratedTourStop => s !== null);
 }
+
+/** Builds one independent tour from a user's ordered selection; never mutates the library. */
+export function populateTour(tour: Tour, locations: ScoutLocation[], selectedIds: string[]): Tour {
+  const uniqueIds = [...new Set(selectedIds)];
+  if (!uniqueIds.length) throw new Error('Hãy chọn ít nhất một spot.');
+  return uniqueIds.reduce((next, id) => {
+    const location = locations.find(l => l.id === id && l.status === 'active');
+    if (!location) throw new Error('Một spot đã bị lưu trữ hoặc không còn tồn tại. Hãy chọn lại.');
+    return addStopToTour(next, location);
+  }, tour);
+}
+
