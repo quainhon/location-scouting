@@ -24,3 +24,10 @@
 
 /* Keep the mobile map sized on browsers that do not support dynamic viewport units. */
 @media(max-width:650px){.app{height:100vh;height:100dvh}}
+
+
+/* iOS Safari can briefly retain stale Leaflet tile geometry after a mobile viewport change. */
+@media(max-width:650px){
+  .map-area,.map-area>.leaflet-root{overflow:hidden}
+  .leaflet-root .leaflet-tile{width:256px!important;height:256px!important;max-width:none!important;max-height:none!important}
+}
