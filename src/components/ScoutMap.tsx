@@ -34,17 +34,16 @@ export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft
     const mobileViewport = window.matchMedia('(max-width: 650px)').matches;
     let delayedResize: number | undefined;
     const refreshMapSize = () => {
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => {
-          if (map.current === instance) instance.invalidateSize({ pan: false, debounceMoveend: true });
-        });
-      });
-      if (mobileViewport) {
-        window.clearTimeout(delayedResize);
-        delayedResize = window.setTimeout(() => {
-          if (map.current === instance) instance.invalidateSize({ pan: false, debounceMoveend: true });
-        }, 180);
+      const invalidate = () => {
+        if (map.current === instance) instance.invalidateSize({ pan: false, debounceMoveend: mobileViewport });
+      };
+      if (!mobileViewport) {
+        window.requestAnimationFrame(invalidate);
+        return;
       }
+      window.requestAnimationFrame(() => window.requestAnimationFrame(invalidate));
+      window.clearTimeout(delayedResize);
+      delayedResize = window.setTimeout(invalidate, 180);
     };
     const observer = new ResizeObserver(refreshMapSize);
     observer.observe(root.current);
