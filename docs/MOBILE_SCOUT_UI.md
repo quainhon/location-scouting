@@ -17,7 +17,7 @@ The three tabs are Map, Scouts, and Library. Today uses the device's local calen
 
 ## Scope
 
-The session control counts elapsed time and successful captures in this open mobile view. It explicitly does not record a GPS route or persist sessions. Camera upload, audio, AI, offline capture/sync and undo are not implemented. Media placeholders say they are unavailable; existing photo URLs remain viewable and editable. No database schema, backend or production deployment changes.
+The session control counts elapsed time and successful captures in this open mobile view. It explicitly does not record a GPS route or persist sessions. Photo capture/upload is supported (see PHOTO_UPLOAD.md). Audio, AI, offline capture/sync and undo are not implemented. Existing photo URLs remain viewable and editable. Photo storage adds one independent table and API route; production deployment is separate.
 
 ## Verification
 

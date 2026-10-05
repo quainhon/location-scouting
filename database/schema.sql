@@ -67,3 +67,9 @@ CREATE TABLE IF NOT EXISTS location_history (
 -- Locations/tours cannot be hard-deleted through the API. Archive via status.
 -- drive_reference stores folder_id/folder_url/asset_count/last_synced_at only;
 -- referenced Drive content is not duplicated or claimed as synchronized.
+-- Small, normalized JPEG scout captures; immutable content-addressed assets.
+CREATE TABLE IF NOT EXISTS scout_photo_assets (
+  id TEXT PRIMARY KEY,
+  bytes BLOB NOT NULL CHECK(length(bytes) <= 1000000),
+  created_at TEXT NOT NULL
+);

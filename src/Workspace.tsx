@@ -5,6 +5,7 @@ import { addStopToTour, removeStopFromTour, moveStop, reorderTourStops, hydrateT
 import { ScoutMap } from './components/ScoutMap';
 import { TourBuilder } from './components/MobileTours';
 
+import { PHOTO_PATH } from '../shared/photos.mjs';
 import { MobileScout } from './components/MobileScout';
 
 type WorkspaceData = { revision: number; locations: ScoutLocation[]; tours: Tour[] };
@@ -131,7 +132,7 @@ export function Workspace() {
     let folderId: string | undefined;
     if (folder) { try { const url = new URL(folder); if (url.protocol !== 'https:' || url.hostname !== 'drive.google.com' || !url.pathname.includes('/folders/')) throw new Error(); folderId = url.pathname.split('/folders/')[1].split('/')[0]; if (!folderId) throw new Error(); } catch { setError('Nhập liên kết thư mục https://drive.google.com/drive/folders/… hợp lệ.'); return; } }
     const photoUrls = [...new Set(lines(text(form, 'photos')))];
-    if (photoUrls.some(url => { try { return !['http:', 'https:'].includes(new URL(url).protocol); } catch { return true; } })) { setError('Mỗi ảnh cần một URL http/https hợp lệ.'); return; }
+    if (photoUrls.some(url => { if (PHOTO_PATH.test(url)) return false; try { return !['http:', 'https:'].includes(new URL(url).protocol); } catch { return true; } })) { setError('Mỗi ảnh cần một URL http/https hợp lệ.'); return; }
     const location: ScoutLocation = stamp({
       id, code: old?.code || `QN-LOC-${id.slice(0, 8).toUpperCase()}`, name: text(form, 'name'), region: text(form, 'region'),
       coordinates: { lat, lng }, description: text(form, 'description'), scouting_notes: text(form, 'notes'),

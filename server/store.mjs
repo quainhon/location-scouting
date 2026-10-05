@@ -1,5 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
+import { PHOTO_PATH } from '../shared/photos.mjs';
 
 export function validate(state) {
   const fail = (message) => { throw Object.assign(new Error(message), { status: 400 }); };
@@ -27,7 +28,7 @@ export function validate(state) {
         if (!item || typeof item !== 'object') fail('Chi tiết không hợp lệ.');
         if (!id(item.id)) fail('ID chi tiết không hợp lệ.');
         allChildIds[key].push(item.id);
-        if (key === 'photos' && (!url(item.url) || !string(item.caption))) fail('Ảnh phải có URL http/https hợp lệ.');
+        if (key === 'photos' && (!(url(item.url) || PHOTO_PATH.test(item.url)) || !string(item.caption))) fail('Ảnh phải có URL http/https hoặc ảnh đã tải lên hợp lệ.');
         if (key === 'checklist' && (!string(item.label) || !item.label.trim() || typeof item.done !== 'boolean')) fail('Checklist không hợp lệ.');
         if (key === 'history' && (!date(item.at) || !string(item.action))) fail('Lịch sử không hợp lệ.');
       }
@@ -104,5 +105,9 @@ export function openStore(filename) {
       return read();
     } catch (error) { db.exec('ROLLBACK'); throw error; }
   }
-  return { read, write, close: () => db.close() };
+  const photos = {
+    async get(id) { return db.prepare('SELECT bytes FROM scout_photo_assets WHERE id=?').get(id)?.bytes ?? null; },
+    async put(id, bytes) { db.prepare('INSERT OR IGNORE INTO scout_photo_assets (id,bytes,created_at) VALUES (?,?,?)').run(id, bytes, new Date().toISOString()); },
+  };
+  return { read, write, photos, close: () => db.close() };
 }

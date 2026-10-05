@@ -5,6 +5,8 @@
  * at the edge before this function is reached.
  */
 
+import { PHOTO_PATH } from '../../shared/photos.mjs';
+
 interface Env {
   location_scout_db: D1Database;
 }
@@ -69,7 +71,7 @@ function validate(state: unknown): void {
         if (!item || typeof item !== 'object') fail('Chi tiết không hợp lệ.');
         if (!id(item.id)) fail('ID chi tiết không hợp lệ.');
         allChildIds[key].push(item.id as string);
-        if (key === 'photos' && (!url(item.url) || !string(item.caption))) fail('Ảnh phải có URL http/https hợp lệ.');
+        if (key === 'photos' && (!(url(item.url) || PHOTO_PATH.test(String(item.url))) || !string(item.caption))) fail('Ảnh phải có URL http/https hoặc ảnh đã tải lên hợp lệ.');
         if (key === 'checklist' && (!string(item.label) || !(item.label as string).trim() || typeof item.done !== 'boolean')) fail('Checklist không hợp lệ.');
         if (key === 'history' && (!date(item.at) || !string(item.action))) fail('Lịch sử không hợp lệ.');
       }

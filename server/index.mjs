@@ -3,6 +3,8 @@ import { mkdirSync, existsSync, createReadStream } from 'node:fs';
 import { resolve, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openStore } from './store.mjs';
+import { Readable } from 'node:stream';
+import { photoResponse } from '../shared/photos.mjs';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const filename = process.env.SCOUT_DB || resolve(root,'data/scout.sqlite');
 mkdirSync(resolve(filename,'..'), {recursive:true});
@@ -16,6 +18,15 @@ const server = createServer(async (req,res) => {
     if (path.startsWith('/api/')) {
       if (!['127.0.0.1','localhost','[::1]'].includes((req.headers.host || '').split(':')[0])) return json(403,{error:'Local access only.'});
       if (req.headers.origin && !['127.0.0.1','localhost'].includes(new URL(req.headers.origin).hostname)) return json(403,{error:'Origin not allowed.'});
+      if (path.startsWith('/api/photos/')) {
+        const request = new Request(`http://${req.headers.host}${path}`, {
+          method: req.method, headers: req.headers,
+          ...(!['GET','HEAD'].includes(req.method) ? { body: Readable.toWeb(req), duplex: 'half' } : {}),
+        });
+        const result = await photoResponse(request, path.slice('/api/photos/'.length), store.photos);
+        res.writeHead(result.status, Object.fromEntries(result.headers));
+        res.end(Buffer.from(await result.arrayBuffer())); return;
+      }
       if (path === '/api/workspace' && req.method === 'GET') return json(200,store.read());
       if (path === '/api/workspace' && req.method === 'PUT') {
         if (!req.headers['content-type']?.startsWith('application/json')) return json(415,{error:'JSON required.'});

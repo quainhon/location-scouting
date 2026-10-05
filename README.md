@@ -28,7 +28,7 @@ Mở http://127.0.0.1:3001. Chỉ bind localhost; chưa phải dịch vụ nhi�
 - Thư viện độc lập, thêm địa điểm vào nhiều tour, Remove Pin chỉ bỏ liên kết.
 - Archive/Restore bảo toàn thông tin và các tour đã liên kết.
 - Trạng thái khảo sát, tọa độ, giờ phù hợp, đường vào, mô tả, highlights, ghi chú.
-- Gallery từ URL ảnh thật do người dùng cung cấp; chuyển ảnh và báo khi URL không tải được.
+- Mobile: chụp ảnh bằng camera hoặc chọn nhiều ảnh, xem trước/bỏ ảnh rồi lưu cùng địa điểm. Có thể thêm ảnh vào địa điểm đã lưu. Gallery hỗ trợ ảnh tải lên và URL ảnh có sẵn.
 - Folder mở thư mục Google Drive đã liên kết; không đọc file riêng tư hoặc giả số lượng ảnh.
 - Notes, Checklist, History lưu trong SQLite. Thời lượng điểm dừng sửa trong Edit → Sửa thời lượng.
 - Bản đồ Leaflet: Esri satellite / OpenStreetMap, zoom, fit toàn bộ lộ trình, chọn pin.
@@ -68,14 +68,14 @@ Nguồn bản đồ: [Leaflet](https://leafletjs.com/reference), [Esri imagery a
 
 ## Mobile và tuyến đường
 
-- Điện thoại mở ở màn **Chọn lộ trình của bạn**. Dropdown chỉ chứa các tour thật đã lưu, không seed tour mẫu.
+- Điện thoại mở thẳng bản đồ với **+ Scout**, **Đã scout** và **Thư viện**. Lưu nhanh không yêu cầu tên hoặc chọn tour. Xem [Mobile Scout UI](docs/MOBILE_SCOUT_UI.md) và [Photo Upload](docs/PHOTO_UPLOAD.md).
 - **Xem tất cả spots** cho chọn nhiều địa điểm đang hoạt động, đổi thứ tự, đặt tên rồi tạo một tour mới trong một lần lưu. Địa điểm và tour cũ được giữ nguyên.
 - Trong tour: map chiếm không gian chính, danh sách điểm có thể mở/thu gọn. Chọn pin zoom tới mức 17 và hiện thẻ nhỏ; **Chi tiết** mở panel ghi chú/ảnh/checklist hiện có.
 - Kéo một ngón, zoom hai ngón hoặc nút +/−. **Thêm spot trên map** bật chế độ đặt pin; chạm bình thường không mở form. **Xem toàn bộ lộ trình** bao gồm cả geometry của đường đi đã tải.
 - Bản đồ đường phố là mặc định. Satellite yêu cầu `blankTile=false`, dùng mức ảnh gốc tối đa 17 rồi phóng ảnh khi zoom gần hơn; tự chuyển về Map khi nhà cung cấp thiếu ảnh. Mức zoom giao diện tối đa 20.
 - Routing: `https://routing.openstreetmap.de/routed-car/route/v1/driving/`, tối đa 100 điểm/lần, giữ thứ tự, không tự tối ưu lại. Cache bộ nhớ 10 phút/40 tuyến; debounce 1,1 giây, giới hạn nhịp request, timeout 15 giây. Kết quả cũ bị bỏ khi tour hoặc tọa độ thay đổi.
 - Dịch vụ công cộng dành cho tải nhẹ, không có cam kết uptime. Nguồn và chính sách: [FOSSGIS](https://routing.openstreetmap.de/about.html), [OSRM API](https://project-osrm.org/docs/v5.24.0/api/), [Esri blankTile](https://developers.arcgis.com/rest/services-reference/enterprise/map-tile/).
-- Thay đổi này không thêm trường lưu trữ và không đổi schema/D1 adapter; `database/schema.sql` vẫn là schema hiện hành. Không triển khai lên hosting trong bước này.
+- Schema hiện hành là `database/schema.sql`; ảnh chụp/upload được lưu ở bảng `scout_photo_assets`, tách khỏi snapshot workspace. Chưa triển khai lên hosting.
 
 PC cũng dùng dropdown lộ trình, nút Xem tất cả spots và chọn nhiều spots để tạo tour theo thứ tự. Scout Library ở thanh bên vẫn cho xem chi tiết / thêm điểm vào tour hiện tại.
 
