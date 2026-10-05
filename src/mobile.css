@@ -21,3 +21,6 @@
   dialog{width:calc(100vw - 16px);max-height:94dvh}.modal-head{padding:13px 15px}.modal-head .icon-button{min-height:40px;min-width:40px}.tour-builder{padding:15px;gap:12px}.tour-builder>p{font-size:15px}.spot-picker-list{max-height:35dvh}.editor-form input,.editor-form select,.editor-form textarea{font-size:16px}.chosen-stops>div{font-size:15px}.builder-save>button{font-size:17px}
 }
 @media(min-width:651px){.tour-switch{position:relative;padding-top:15px}.desktop-tour-label{position:absolute;top:-3px;left:1px;font-size:12px;color:#79806d;font-family:'Itim',cursive}.tour-switch select{max-width:330px}}
+
+/* Keep the mobile map sized on browsers that do not support dynamic viewport units. */
+@media(max-width:650px){.app{height:100vh;height:100dvh}}
