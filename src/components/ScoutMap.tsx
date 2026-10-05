@@ -7,6 +7,7 @@ import { fetchDrivingRoute, routeKey, type DrivingRoute } from '../utils/routing
 export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft, draftPoint, fitSignal, pickSignal = 0 }: { locations: ScoutLocation[]; stops: HydratedTourStop[]; selectedId: string; onSelect: (id: string) => void; onCreateDraft: (point: GeoPoint) => void; draftPoint: GeoPoint | null; fitSignal: number; pickSignal?: number }) {
   const root = useRef<HTMLDivElement>(null); const map = useRef<L.Map | null>(null);
   const [layer, setLayer] = useState<'satellite' | 'map'>('map');
+  const mobileFallbackAttempted = useRef(false);
   const [tileError, setTileError] = useState(false); const [tileNotice, setTileNotice] = useState('');
   const [retry, setRetry] = useState(0); const [routeRetry, setRouteRetry] = useState(0);
   const [placing, setPlacing] = useState(false); const placingRef = useRef(false); placingRef.current = placing;
@@ -55,17 +56,44 @@ export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft
   useEffect(() => {
     if (!map.current) return;
     setTileError(false);
-    let live = true; let failed = false;
+    let live = true; let failed = false; let loaded = false; let errorCount = 0;
+    const mobileViewport = window.matchMedia('(max-width: 650px)').matches;
+    let fallbackTimer: number | undefined;
+    const switchToSatellite = () => {
+      if (!live || failed || mobileFallbackAttempted.current) return;
+      failed = true;
+      mobileFallbackAttempted.current = true;
+      window.clearTimeout(fallbackTimer);
+      setTileNotice('Bản đồ đường phố chưa tải được. Đã chuyển sang ảnh vệ tinh.');
+      setLayer('satellite');
+    };
     const tile = layer === 'satellite'
       ? L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?blankTile=false', { maxNativeZoom: 17, maxZoom: 20, attribution: 'Tiles © Esri — Esri, Maxar, Earthstar Geographics, GIS User Community' })
       : L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxNativeZoom: 19, maxZoom: 20, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' });
+    tile.on('tileload', () => {
+      loaded = true;
+      window.clearTimeout(fallbackTimer);
+    });
     tile.on('tileerror', () => {
-      if (!live || failed) return; failed = true;
-      if (layer === 'satellite') { setTileNotice('Ảnh vệ tinh chưa có ở đây. Đã chuyển sang bản đồ đường phố.'); setLayer('map'); }
-      else setTileError(true);
+      if (!live || failed) return;
+      errorCount += 1;
+      if (layer === 'map' && mobileViewport) {
+        if (errorCount >= 3) switchToSatellite();
+      } else if (layer === 'satellite' && mobileViewport) {
+        failed = true; setTileError(true);
+      } else {
+        failed = true;
+        if (layer === 'satellite') { setTileNotice('Ảnh vệ tinh chưa có ở đây. Đã chuyển sang bản đồ đường phố.'); setLayer('map'); }
+        else setTileError(true);
+      }
     });
     tile.addTo(map.current);
-    return () => { live = false; tile.remove(); };
+    if (layer === 'map' && mobileViewport && !mobileFallbackAttempted.current) {
+      fallbackTimer = window.setTimeout(() => {
+        if (!loaded) switchToSatellite();
+      }, 6000);
+    }
+    return () => { live = false; window.clearTimeout(fallbackTimer); tile.remove(); };
   }, [layer, retry]);
   useEffect(() => {
     if (coordinates.length < 2) { setRouting({ key }); return; }
@@ -114,7 +142,7 @@ export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft
   useEffect(() => { if (selected) map.current?.setView([selected.coordinates.lat, selected.coordinates.lng], Math.max(map.current.getZoom(), 17), { animate: false }); }, [selectedId, selected?.coordinates.lat, selected?.coordinates.lng]);
   return <>
     <div className={`leaflet-root ${placing ? 'placing-pin' : ''}`} ref={root} aria-label="Bản đồ tương tác: kéo để di chuyển, chụm hai ngón để zoom" />
-    <div className="map-layers"><button className={layer === 'map' ? 'active' : ''} onClick={() => { setLayer('map'); setTileNotice(''); }}>Map</button><button className={layer === 'satellite' ? 'active' : ''} onClick={() => { setLayer('satellite'); setTileNotice(''); }}>Satellite</button></div>
+    <div className="map-layers"><button className={layer === 'map' ? 'active' : ''} onClick={() => { mobileFallbackAttempted.current = false; setLayer('map'); setTileNotice(''); }}>Map</button><button className={layer === 'satellite' ? 'active' : ''} onClick={() => { mobileFallbackAttempted.current = true; setLayer('satellite'); setTileNotice(''); }}>Satellite</button></div>
     <button className={`place-pin-button ${placing ? 'active' : ''}`} onClick={() => setPlacing(v => !v)} aria-pressed={placing}>{placing ? <X size={16} /> : <MapPin size={16} />}{placing ? 'Hủy đặt pin' : 'Thêm spot trên map'}</button>
     {placing && <div className="placing-hint" role="status">Kéo / zoom để tìm vị trí, rồi chạm để đặt pin.</div>}
     <div className="map-controls"><button aria-label="Xem toàn bộ lộ trình" title="Xem toàn bộ lộ trình" onClick={fit}><LocateFixed size={21} /></button><div><button aria-label="Phóng to" disabled={zoom >= 20} onClick={() => map.current?.zoomIn()}><Plus size={23} /></button><button aria-label="Thu nhỏ" disabled={zoom <= 3} onClick={() => map.current?.zoomOut()}><Minus size={23} /></button></div></div>
