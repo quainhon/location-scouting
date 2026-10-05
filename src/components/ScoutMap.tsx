@@ -30,8 +30,27 @@ export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft
       if (!placingRef.current) return;
       setPlacing(false); createDraft.current({ lat: event.latlng.lat, lng: event.latlng.lng });
     });
-    const observer = new ResizeObserver(() => instance.invalidateSize({ pan: false })); observer.observe(root.current);
-    return () => { observer.disconnect(); instance.remove(); map.current = null; };
+    const refreshMapSize = () => {
+      window.requestAnimationFrame(() => {
+        if (map.current === instance) instance.invalidateSize({ pan: false });
+      });
+    };
+    const observer = new ResizeObserver(refreshMapSize);
+    observer.observe(root.current);
+    const mobileViewport = window.matchMedia('(max-width: 650px)').matches;
+    if (mobileViewport) {
+      window.addEventListener('orientationchange', refreshMapSize);
+      window.visualViewport?.addEventListener('resize', refreshMapSize);
+    }
+    return () => {
+      observer.disconnect();
+      if (mobileViewport) {
+        window.removeEventListener('orientationchange', refreshMapSize);
+        window.visualViewport?.removeEventListener('resize', refreshMapSize);
+      }
+      instance.remove();
+      map.current = null;
+    };
   }, []);
   useEffect(() => {
     if (!map.current) return;
