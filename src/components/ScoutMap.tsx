@@ -4,12 +4,13 @@ import 'leaflet/dist/leaflet.css';
 import { LocateFixed, Minus, Plus, MapPin, X, Car, LoaderCircle } from 'lucide-react';
 import type { ScoutLocation, HydratedTourStop, GeoPoint } from '../types/scout';
 import { fetchDrivingRoute, routeKey, type DrivingRoute } from '../utils/routing';
-export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft, draftPoint, fitSignal }: { locations: ScoutLocation[]; stops: HydratedTourStop[]; selectedId: string; onSelect: (id: string) => void; onCreateDraft: (point: GeoPoint) => void; draftPoint: GeoPoint | null; fitSignal: number }) {
+export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft, draftPoint, fitSignal, pickSignal = 0 }: { locations: ScoutLocation[]; stops: HydratedTourStop[]; selectedId: string; onSelect: (id: string) => void; onCreateDraft: (point: GeoPoint) => void; draftPoint: GeoPoint | null; fitSignal: number; pickSignal?: number }) {
   const root = useRef<HTMLDivElement>(null); const map = useRef<L.Map | null>(null);
   const [layer, setLayer] = useState<'satellite' | 'map'>('map');
   const [tileError, setTileError] = useState(false); const [tileNotice, setTileNotice] = useState('');
   const [retry, setRetry] = useState(0); const [routeRetry, setRouteRetry] = useState(0);
   const [placing, setPlacing] = useState(false); const placingRef = useRef(false); placingRef.current = placing;
+  useEffect(() => { if (pickSignal) setPlacing(true); }, [pickSignal]);
   const [zoom, setZoom] = useState(12);
   const [routing, setRouting] = useState<{ key: string; route?: DrivingRoute; error?: string }>({ key: '' });
   const select = useRef(onSelect); select.current = onSelect;

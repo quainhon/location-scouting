@@ -3,7 +3,9 @@ import { Compass, Map as MapIcon, Plus, X, Search, Archive, MapPin, Clock, Hourg
 import type { ScoutLocation, Tour } from './types/scout';
 import { addStopToTour, removeStopFromTour, moveStop, reorderTourStops, hydrateTourStops, populateTour } from './utils/invariants';
 import { ScoutMap } from './components/ScoutMap';
-import { MobileTourHome, TourBuilder } from './components/MobileTours';
+import { TourBuilder } from './components/MobileTours';
+
+import { MobileScout } from './components/MobileScout';
 
 type WorkspaceData = { revision: number; locations: ScoutLocation[]; tours: Tour[] };
 const statusLabels = { not_scouted: 'Not scouted', candidate: 'Candidate', scouted: 'Scouted', approved: 'Approved' };
@@ -152,15 +154,17 @@ export function Workspace() {
   }
 
   return <div className={`app ${isMobile && mobileHome ? 'mobile-home-active' : ''} ${mobileStops ? 'mobile-stops-open' : ''} ${mobileDetails ? 'mobile-details-open' : ''}`}>
-    <header className="app-header"><a className="brand" href="/" aria-label="Quài Nhơn Location Scout"><div className="brand-mark"><Compass size={35} strokeWidth={2.1} /></div><span>Quài Nhơn<strong>Location Scout</strong></span></a>
+    <header className={`app-header ${isMobile ? 'scout-hide-header' : ''}`}><a className="brand" href="/" aria-label="Quài Nhơn Location Scout"><div className="brand-mark"><Compass size={35} strokeWidth={2.1} /></div><span>Quài Nhơn<strong>Location Scout</strong></span></a>
       <div className="tour-switch"><label className="desktop-tour-label" htmlFor="desktop-tour-choice">Chọn lộ trình của bạn</label><select id="desktop-tour-choice" aria-label="Chọn tour" value={tour?.id || ''} onChange={e => chooseTour(e.target.value)}><option value="" disabled>Chọn lộ trình của bạn</option>{data?.tours.map(t => <option key={t.id} value={t.id}>{t.title} · {t.stops.length} điểm</option>)}</select><button className="icon-button" title="Chọn spots để tạo tour" aria-label="Chọn spots để tạo tour" onClick={browseSpots} disabled={!data || busy}><Plus size={18} /></button></div>
       <span className="save-status">{busy ? <><LoaderCircle className="spin" size={14} /> Đang lưu…</> : data ? <><span className="connection-dot" /> Đã kết nối SQLite</> : 'Đang kết nối…'}</span>
       <div className="header-actions"><button aria-label="Xem tất cả spots" onClick={browseSpots}><MapIcon size={19} /><span>Xem tất cả spots</span></button><button className="primary" onClick={() => openNewLocation()} disabled={!data || busy}><Plus size={19} /> Add Spot</button><button className="avatar" title="Xuất bản sao dữ liệu JSON" aria-label="Xuất dữ liệu" onClick={exportData} disabled={!data}><Download size={19} /></button></div>
     </header>
     {error && <div className="error-banner" role="alert">{error}<button onClick={() => void load()} disabled={busy}>Tải lại dữ liệu</button><button className="icon-button" onClick={() => setError('')} aria-label="Đóng thông báo"><X size={16} /></button></div>}
-    {isMobile && mobileHome && <MobileTourHome tours={data?.tours.filter(t => t.status !== 'archived') || []} count={data?.locations.filter(l => l.status === 'active').length || 0} ready={!!data} busy={busy} onChoose={chooseTour} onBrowse={browseSpots} onAdd={() => openNewLocation()} />}
-    {isMobile && !mobileHome && <nav className="mobile-map-nav" aria-label="Điều hướng tour"><button onClick={() => { setMobileHome(true); setSelectedId(''); setMobileStops(false); }}><ChevronLeft size={18} />Lộ trình</button><strong>{tour?.title || 'Khám phá spots'}</strong><button onClick={browseSpots}><Plus size={17} />Spots</button></nav>}
-    <main className="workspace">
+    {isMobile && <MobileScout locations={data?.locations || []} ready={!!data} busy={busy} error={error} onEdit={setEdit} onUpdate={updateLocation} onCreate={async location => {
+      if (!data) return false;
+      return save({ ...data, locations: [...data.locations.filter(l => l.id !== location.id), location] });
+    }} />}
+    {!isMobile && <main className="workspace">
       <aside className="sidebar"><div className="sidebar-heading"><h2>Tour Stops <span>({stops.length})</span></h2><Route size={20} /><button className="mobile-only icon-button" aria-label="Thu gọn danh sách điểm" onClick={() => setMobileStops(false)}><X size={19} /></button></div>
         <div className="stops-scroll">{!data ? <Empty icon={<LoaderCircle className="spin" />} title={error ? 'Chưa kết nối' : 'Đang mở workspace'}>Dữ liệu được đọc từ database trên máy.</Empty> : stops.length === 0 ? <Empty icon={<MapPin />} title={tour ? 'Lộ trình đang chờ bạn' : 'Bắt đầu một chuyến khảo sát'}>{tour ? 'Thêm địa điểm đầu tiên hoặc chọn từ thư viện để lên lộ trình.' : 'Tạo tour và lưu những địa điểm bạn muốn khảo sát.'}</Empty> : stops.map((s, i) => <div key={s.id} draggable={!busy} onDragStart={() => { draggedStop.current = s.id; }} onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); if (!tour || busy || !draggedStop.current || draggedStop.current === s.id) return; const ids = tour.stops.map(item => item.id).filter(id => id !== draggedStop.current); ids.splice(ids.indexOf(s.id), 0, draggedStop.current); void updateTour(reorderTourStops(tour, ids)); draggedStop.current = ''; }} onDragEnd={() => { draggedStop.current = ''; }} className={`stop-card ${selectedId === s.location_id ? 'selected' : ''}`}>
           <GripVertical size={15} className="grip" /><button className="stop-select" onClick={() => selectSpot(s.location_id)}><span className="number">{s.stop_order}</span><Photo url={s.location.photos?.[0]?.url} name={s.location.name} className="stop-photo" /><span className="stop-text"><strong>{s.location.name}</strong><span className="status-line"><i className={`dot ${s.location.scouting_status || 'not_scouted'}`} />{s.location.status === 'archived' ? 'Archived' : statusLabels[s.location.scouting_status || 'not_scouted']}</span></span></button>
@@ -200,7 +204,7 @@ export function Workspace() {
           <div className="detail-actions"><button disabled={busy || !tour || !!selectedStop || selected.status === 'archived'} onClick={() => void add(selected)}><Plus size={16} />Add to Tour</button><button onClick={() => setEdit(selected)} disabled={busy}><Pencil size={16} />Edit</button><button className="danger" disabled={busy || !selectedStop} onClick={() => tour && selectedStop && void updateTour(removeStopFromTour(tour, selectedStop.id), selected.id, `Bỏ pin khỏi tour “${tour.title}”`)}><MapPin size={16} />Remove Pin</button><button disabled={busy} onClick={() => void updateLocation({ ...selected, status: selected.status === 'active' ? 'archived' : 'active' }, selected.status === 'active' ? 'Lưu trữ địa điểm' : 'Khôi phục địa điểm')}><Archive size={16} />{selected.status === 'archived' ? 'Restore' : 'Archive'}</button></div>
         </>}
       </aside>
-    </main>
+    </main>}
     {message && <div role="status" className="toast"><Check size={16} />{message}</div>}
     {builderOpen && <Modal title="Chọn spots để tạo tour" onClose={() => setBuilderOpen(false)}><TourBuilder locations={data?.locations || []} busy={busy} error={error} onCreate={createSelectedTour} /></Modal>}
     {library && <Modal title={library === 'active' ? 'Scout Library' : 'Archived Spots'} onClose={() => setLibrary(null)}><div className="library-body"><div className="library-tools"><div className="input-icon"><Search size={18} /><input aria-label="Tìm trong thư viện" placeholder="Tìm theo tên hoặc khu vực…" value={libraryQuery} onChange={e => setLibraryQuery(e.target.value)} /></div><button onClick={() => { setLibrary(null); openNewLocation(); }} disabled={!data || busy}><Plus size={17} />Add Spot</button></div><div className="library-grid">{data?.locations.filter(l => l.status === library && `${l.name} ${l.region}`.toLocaleLowerCase('vi').includes(libraryQuery.toLocaleLowerCase('vi'))).map(l => <article className="library-card" key={l.id}><Photo url={l.photos?.[0]?.url} name={l.name} /><h3>{l.name}</h3><p>{l.region || 'Chưa ghi khu vực'}</p><div><button onClick={() => { setSelectedId(l.id); setLibrary(null); setMobileHome(false); setMobileDetails(true); }}>Xem chi tiết</button>{library === 'archived' ? <button disabled={busy} onClick={() => void updateLocation({ ...l, status: 'active' }, 'Khôi phục địa điểm')}>Restore</button> : <button disabled={busy || !tour || tour.stops.some(s => s.location_id === l.id)} onClick={() => void add(l)}>{tour?.stops.some(s => s.location_id === l.id) ? 'Đã trong tour' : 'Add to Tour'}</button>}</div></article>)}</div>{!data?.locations.some(l => l.status === library && `${l.name} ${l.region}`.toLocaleLowerCase('vi').includes(libraryQuery.toLocaleLowerCase('vi'))) && <Empty icon={library === 'archived' ? <Archive /> : <MapIcon />} title={libraryQuery ? 'Không tìm thấy địa điểm' : 'Chưa có địa điểm'}>{library === 'archived' ? 'Những địa điểm được lưu trữ sẽ xuất hiện ở đây.' : 'Thêm địa điểm thật để xây dựng thư viện khảo sát của bạn.'}</Empty>}</div></Modal>}
@@ -213,6 +217,3 @@ export function Workspace() {
     {durationEditor && tour && selectedStop && <Modal title="Thời lượng điểm dừng" onClose={() => setDurationEditor(false)}><form className="editor-form" onSubmit={e => { e.preventDefault(); const minutes = Number(new FormData(e.currentTarget).get('minutes')); void updateTour({ ...tour, updated_at: now(), stops: tour.stops.map(s => s.id === selectedStop.id ? { ...s, planned_duration_minutes: minutes } : s) }).then(ok => ok && setDurationEditor(false)); }}><label>Thời lượng (phút)<input autoFocus name="minutes" type="number" min="0" step="1" required defaultValue={selectedStop.planned_duration_minutes} /></label><button className="primary" disabled={busy}>Lưu thời lượng</button></form></Modal>}
   </div>;
 }
-
-
-
