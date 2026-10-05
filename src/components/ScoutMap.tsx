@@ -31,22 +31,35 @@ export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft
       if (!placingRef.current) return;
       setPlacing(false); createDraft.current({ lat: event.latlng.lat, lng: event.latlng.lng });
     });
+    const mobileViewport = window.matchMedia('(max-width: 650px)').matches;
+    let delayedResize: number | undefined;
     const refreshMapSize = () => {
       window.requestAnimationFrame(() => {
-        if (map.current === instance) instance.invalidateSize({ pan: false });
+        window.requestAnimationFrame(() => {
+          if (map.current === instance) instance.invalidateSize({ pan: false, debounceMoveend: true });
+        });
       });
+      if (mobileViewport) {
+        window.clearTimeout(delayedResize);
+        delayedResize = window.setTimeout(() => {
+          if (map.current === instance) instance.invalidateSize({ pan: false, debounceMoveend: true });
+        }, 180);
+      }
     };
     const observer = new ResizeObserver(refreshMapSize);
     observer.observe(root.current);
-    const mobileViewport = window.matchMedia('(max-width: 650px)').matches;
     if (mobileViewport) {
       window.addEventListener('orientationchange', refreshMapSize);
+      window.addEventListener('pageshow', refreshMapSize);
       window.visualViewport?.addEventListener('resize', refreshMapSize);
     }
+    refreshMapSize();
     return () => {
+      window.clearTimeout(delayedResize);
       observer.disconnect();
       if (mobileViewport) {
         window.removeEventListener('orientationchange', refreshMapSize);
+        window.removeEventListener('pageshow', refreshMapSize);
         window.visualViewport?.removeEventListener('resize', refreshMapSize);
       }
       instance.remove();
