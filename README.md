@@ -78,6 +78,6 @@ Nguồn bản đồ: [Leaflet](https://leafletjs.com/reference), [Esri imagery a
 - Dịch vụ công cộng dành cho tải nhẹ, không có cam kết uptime. Nguồn và chính sách: [FOSSGIS](https://routing.openstreetmap.de/about.html), [OSRM API](https://project-osrm.org/docs/v5.24.0/api/), [Esri blankTile](https://developers.arcgis.com/rest/services-reference/enterprise/map-tile/).
 - Schema hiện hành là `database/schema.sql`; ảnh chụp/upload được lưu ở bảng `scout_photo_assets`, tách khỏi snapshot workspace. Chưa triển khai lên hosting.
 
-PC cũng dùng dropdown lộ trình, nút Xem tất cả spots và chọn nhiều spots để tạo tour theo thứ tự. Scout Library ở thanh bên vẫn cho xem chi tiết / thêm điểm vào tour hiện tại.
+PC cũng dùng dropdown lộ trình, nút Xem tất cả spots và chọn nhiều spots để tạo tour theo thứ tự. Web có các bộ lọc Hôm nay/Cần xem lại, upload ảnh trực tiếp vào spot, đánh giá nhanh, và chế độ Xem route toàn màn hình với thumbnail pin + đổi thứ tự trực tiếp trên bản đồ. Scout Library ở thanh bên vẫn cho xem chi tiết / thêm điểm vào tour hiện tại.
 
 - Video spot: MP4/MOV tối đa 15 giây, 20 MB/clip, 4 clip/spot; xem và tải trực tiếp. Xem docs/VIDEO_UPLOAD.md.
