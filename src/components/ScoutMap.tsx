@@ -4,7 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import { LocateFixed, Minus, Plus, MapPin, X, Car, LoaderCircle } from 'lucide-react';
 import type { ScoutLocation, HydratedTourStop, GeoPoint } from '../types/scout';
 import { fetchDrivingRoute, routeKey, type DrivingRoute } from '../utils/routing';
-export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft, draftPoint, fitSignal, pickSignal = 0 }: { locations: ScoutLocation[]; stops: HydratedTourStop[]; selectedId: string; onSelect: (id: string) => void; onCreateDraft: (point: GeoPoint) => void; draftPoint: GeoPoint | null; fitSignal: number; pickSignal?: number }) {
+export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft, draftPoint, fitSignal, pickSignal = 0, showThumbnails = false, focusSelected = true }: { locations: ScoutLocation[]; stops: HydratedTourStop[]; selectedId: string; onSelect: (id: string) => void; onCreateDraft: (point: GeoPoint) => void; draftPoint: GeoPoint | null; fitSignal: number; pickSignal?: number; showThumbnails?: boolean; focusSelected?: boolean }) {
   const root = useRef<HTMLDivElement>(null); const map = useRef<L.Map | null>(null);
   const [layer, setLayer] = useState<'satellite' | 'map'>('map');
   const mobileFallbackAttempted = useRef(false);
@@ -130,7 +130,22 @@ export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft
     const group = L.layerGroup().addTo(map.current);
     locations.filter(l => l.status === 'active' || stops.some(s => s.location_id === l.id)).forEach(l => {
       const stop = stops.find(s => s.location_id === l.id);
-      const icon = L.divIcon({ className: 'map-marker', html: `<span class="pin ${selectedId === l.id ? 'selected' : ''} ${!stop ? 'library-pin' : ''}"><span>${stop?.stop_order || '•'}</span></span>`, iconSize: [38, 48], iconAnchor: [19, 46] });
+      const photoUrl = showThumbnails && stop ? l.photos?.[0]?.url : undefined;
+      const markerBody = document.createElement('span');
+      markerBody.className = `pin ${photoUrl ? 'route-thumb-pin' : ''} ${selectedId === l.id ? 'selected' : ''} ${!stop ? 'library-pin' : ''}`;
+      if (photoUrl) {
+        const image = document.createElement('img');
+        image.src = photoUrl; image.alt = ''; image.loading = 'lazy'; image.referrerPolicy = 'no-referrer';
+        markerBody.appendChild(image);
+        const order = document.createElement('span');
+        order.className = 'pin-order'; order.textContent = String(stop?.stop_order || '');
+        markerBody.appendChild(order);
+      } else {
+        const order = document.createElement('span');
+        order.textContent = String(stop?.stop_order || '•');
+        markerBody.appendChild(order);
+      }
+      const icon = L.divIcon({ className: 'map-marker', html: markerBody, iconSize: photoUrl ? [44, 52] : [38, 48], iconAnchor: photoUrl ? [22, 46] : [19, 46] });
       const tooltip = document.createElement('span'); tooltip.textContent = l.name;
       L.marker([l.coordinates.lat, l.coordinates.lng], { icon, title: l.name, keyboard: true, bubblingMouseEvents: false }).bindTooltip(tooltip, { direction: 'right', offset: [18, -20] }).on('click', () => select.current(l.id)).addTo(group);
     });
@@ -139,7 +154,7 @@ export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft
       L.marker([draftPoint.lat, draftPoint.lng], { icon, keyboard: false, interactive: false }).addTo(group);
     }
     return () => { group.remove(); };
-  }, [locations, stops, selectedId, draftPoint]);
+  }, [locations, stops, selectedId, draftPoint, showThumbnails]);
   function fit() {
     const instance = map.current; if (!instance) return;
     const points = stopsRef.current.length ? stopsRef.current.map(s => s.location) : locationsRef.current.filter(l => l.status === 'active');
@@ -151,7 +166,7 @@ export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft
   useEffect(() => { fit(); }, [fitSignal, key]);
   // A selection focuses closely without continually resetting the user's pan/zoom.
   const selected = locations.find(l => l.id === selectedId);
-  useEffect(() => { if (selected) map.current?.setView([selected.coordinates.lat, selected.coordinates.lng], Math.max(map.current.getZoom(), 17), { animate: false }); }, [selectedId, selected?.coordinates.lat, selected?.coordinates.lng]);
+  useEffect(() => { if (focusSelected && selected) map.current?.setView([selected.coordinates.lat, selected.coordinates.lng], Math.max(map.current.getZoom(), 17), { animate: false }); }, [focusSelected, selectedId, selected?.coordinates.lat, selected?.coordinates.lng]);
   return <>
     <div className={`leaflet-root ${placing ? 'placing-pin' : ''}`} ref={root} aria-label="Bản đồ tương tác: kéo để di chuyển, chụm hai ngón để zoom" />
     <div className="map-layers"><button className={layer === 'map' ? 'active' : ''} onClick={() => { mobileFallbackAttempted.current = false; setLayer('map'); setTileNotice(''); }}>Map</button><button className={layer === 'satellite' ? 'active' : ''} onClick={() => { mobileFallbackAttempted.current = true; setLayer('satellite'); setTileNotice(''); }}>Satellite</button></div>
