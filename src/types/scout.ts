@@ -5,7 +5,7 @@
  * 1. ScoutLocation is reusable and independent: may exist without a tour, or participate in multiple tours.
  * 2. Per-tour sequence/order belongs to TourStop (`stop_order`), never globally to ScoutLocation.
  * 3. Removing a TourStop never deletes or mutates the underlying ScoutLocation or its Drive association.
- * 4. Hard delete is disabled by default; soft-archive (`status: 'archived'`) is enforced.
+ * 4. Archive is reversible; permanent deletion requires explicit confirmation and removes linked tour stops.
  * 5. Google Drive content is referenced (`drive_url`, `folder_id`), never duplicated.
  * 6. AI recommendations require explicit human approval before mutating routes.
  */
@@ -43,6 +43,7 @@ export interface ScoutLocation {
   scouting_status?: 'not_scouted' | 'candidate' | 'scouted' | 'approved';
   access?: string;
   photos?: { id: string; url: string; caption: string }[];
+  videos?: { id: string; url: string; caption: string; duration: number }[];
   checklist?: { id: string; label: string; done: boolean }[];
   history?: { id: string; at: string; action: string }[];
 }

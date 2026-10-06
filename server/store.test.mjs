@@ -16,8 +16,8 @@ test('fresh database is empty, SQL schema runs, and edits survive reopening',()=
 test('removing a stop preserves location, archive and restore preserve checklist',()=>{
  const store=openStore(':memory:');try{let s=store.write(fixture());s.tours[0].stops=[];s=store.write(s);assert.equal(s.locations.length,1);s.locations[0].status='archived';s=store.write(s);assert.equal(s.locations[0].checklist.length,1);s.locations[0].status='active';s.locations[0].checklist[0].done=true;s=store.write(s);assert.equal(s.locations[0].checklist[0].done,true);}finally{store.close();}
 });
-test('stale revisions, invalid coordinates, orphan stops and hard deletion are rejected without data loss',()=>{
- const store=openStore(':memory:');try{const saved=store.write(fixture());assert.throws(()=>store.write(fixture()),/cửa sổ khác/);let invalid=structuredClone(saved);invalid.locations[0].coordinates.lat=91;assert.throws(()=>store.write(invalid),/Tọa độ/);invalid=structuredClone(saved);invalid.tours[0].stops[0].location_id='missing';assert.throws(()=>store.write(invalid),/Điểm dừng/);invalid=structuredClone(saved);invalid.locations=[];invalid.tours[0].stops=[];assert.throws(()=>store.write(invalid),/Archive/);assert.deepEqual(store.read(),saved);}finally{store.close();}
+test('stale revisions and invalid data are rejected; permanent location deletion is transactional',()=>{
+ const store=openStore(':memory:');try{const saved=store.write(fixture());assert.throws(()=>store.write(fixture()),/cửa sổ khác/);let invalid=structuredClone(saved);invalid.locations[0].coordinates.lat=91;assert.throws(()=>store.write(invalid),/Tọa độ/);invalid=structuredClone(saved);invalid.tours[0].stops[0].location_id='missing';assert.throws(()=>store.write(invalid),/Điểm dừng/);assert.deepEqual(store.read(),saved);saved.tours[0].stops=[];saved.locations=[];const deleted=store.write(saved);assert.equal(deleted.locations.length,0);assert.equal(deleted.tours[0].stops.length,0);assert.deepEqual(store.read(),deleted);}finally{store.close();}
 });
 test('unsafe URLs and duplicate IDs are rejected; SQL failure rolls back the transaction',()=>{
  const store=openStore(':memory:');try{const saved=store.write(fixture());let invalid=structuredClone(saved);invalid.locations[0].photos=[{id:'p',url:'javascript:alert(1)',caption:''}];assert.throws(()=>store.write(invalid),/http/);invalid=structuredClone(saved);invalid.locations[0].checklist.push(invalid.locations[0].checklist[0]);assert.throws(()=>store.write(invalid),/trùng lặp/);invalid=structuredClone(saved);invalid.locations.push({...invalid.locations[0],id:'second',checklist:[],history:[]});assert.throws(()=>store.write(invalid),/UNIQUE/);assert.deepEqual(store.read(),saved);}finally{store.close();}
@@ -45,3 +45,23 @@ test('uploaded photo bytes and references survive reopening, edits, and archive/
  } finally {store?.close();rmSync(folder,{recursive:true,force:true});}
 });
 
+
+test('video chunks and spot metadata survive reopening, edits and archive; deletion removes associations', async () => {
+ const folder=mkdtempSync(join(testRoot,'scout-video-test-'));let store;
+ try {
+  const filename=join(folder,'videos.sqlite');store=openStore(filename);
+  const bytes=new Uint8Array(1000040);bytes[0]=24;bytes[1000039]=77;
+  const id=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(b=>b.toString(16).padStart(2,'0')).join('');
+  await store.videos.put(id,{bytes,mime:'video/mp4',duration:15});
+  let state=fixture();state.locations[0].videos=[{id:'saved-video',url:'/api/videos/'+id,caption:'Test clip',duration:15}];
+  state=store.write(state);store.close();store=openStore(filename);
+  assert.deepEqual((await store.videos.get(id)).bytes,bytes);
+  state=store.read();assert.equal(state.locations[0].videos[0].duration,15);
+  state.locations[0].status='archived';state=store.write(state);state.locations[0].status='active';state.locations[0].scouting_notes='Updated notes';state=store.write(state);
+  assert.equal(state.locations[0].videos.length,1);assert.deepEqual((await store.videos.get(id)).bytes,bytes);
+  delete state.locations[0].videos;state.locations[0].scouting_notes='Legacy client edit';state=store.write(state);assert.equal(state.locations[0].videos.length,1);
+  const invalid=structuredClone(state);invalid.locations[0].videos[0].duration=16;assert.throws(()=>store.write(invalid),/Video/);
+  state.locations=[];state.tours[0].stops=[];state=store.write(state);assert.equal(state.locations.length,0);
+  assert.deepEqual((await store.videos.get(id)).bytes,bytes);
+ }finally{store?.close();rmSync(folder,{recursive:true,force:true});}
+});

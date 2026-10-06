@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import { PHOTO_PATH } from '../shared/photos.mjs';
+import { validVideos, VIDEO_CHUNK_BYTES } from '../shared/videos.mjs';
 
 export function validate(state) {
   const fail = (message) => { throw Object.assign(new Error(message), { status: 400 }); };
@@ -13,8 +14,10 @@ export function validate(state) {
   if (!state || !Number.isInteger(state.revision) || !Array.isArray(state.locations) || !Array.isArray(state.tours)) fail('Dữ liệu workspace không hợp lệ.');
   if ([...state.locations,...state.tours].some(v => !v || typeof v !== 'object')) fail('Bản ghi không hợp lệ.');
   if (!unique(state.locations.map(l => l.id)) || !unique(state.tours.map(t => t.id))) fail('ID trùng lặp.');
-  const allChildIds = { photos: [], checklist: [], history: [], stops: [] };
+  const allChildIds = { photos: [], videos: [], checklist: [], history: [], stops: [] };
   for (const l of state.locations) {
+    if (!validVideos(l.videos)) fail('Video phải là clip đã tải lên, tối đa 15 giây và 4 clip/spot.');
+    for (const v of l.videos || []) allChildIds.videos.push(v.id);
     if (!id(l.id) || !id(l.code) || !string(l.name) || !l.name.trim() || !['active','archived'].includes(l.status)) fail('Địa điểm không hợp lệ.');
     if (!l.coordinates || !Number.isFinite(l.coordinates.lat) || Math.abs(l.coordinates.lat)>90 || !Number.isFinite(l.coordinates.lng) || Math.abs(l.coordinates.lng)>180) fail('Tọa độ không hợp lệ.');
     for (const key of ['region','description','scouting_notes','best_time_to_shoot']) if (!string(l[key])) fail(`Trường ${key} không hợp lệ.`);
@@ -61,6 +64,7 @@ export function openStore(filename) {
       const { latitude, longitude, ...l } = row;
       for (const k of ['camera_angles','tags','drive_reference']) l[k] = JSON.parse(l[k]);
       l.coordinates = { lat: latitude, lng: longitude }; l.drone_permitted = !!l.drone_permitted;
+      l.videos = db.prepare('SELECT id,url,caption,duration FROM location_videos WHERE location_id=? ORDER BY position').all(l.id);
       l.photos = db.prepare('SELECT id,url,caption FROM location_photos WHERE location_id=? ORDER BY position').all(l.id);
       l.checklist = db.prepare('SELECT id,label,done FROM location_checklist WHERE location_id=? ORDER BY position').all(l.id).map(c => ({...c, done: !!c.done}));
       l.history = db.prepare('SELECT id,at,action FROM location_history WHERE location_id=? ORDER BY at DESC,id').all(l.id);
@@ -79,14 +83,19 @@ export function openStore(filename) {
     try {
       const previous = read();
       if (state.revision !== previous.revision) throw Object.assign(new Error('Dữ liệu đã thay đổi ở cửa sổ khác. Tải lại trước khi lưu.'), {status:409});
-      if (previous.locations.some(l => !state.locations.some(n => n.id === l.id)) || previous.tours.some(t => !state.tours.some(n => n.id === t.id))) throw Object.assign(new Error('Không hỗ trợ xóa vĩnh viễn. Hãy dùng Archive.'), {status:400});
-      db.exec('DELETE FROM tour_stops; DELETE FROM location_photos; DELETE FROM location_checklist; DELETE FROM location_history;');
+      state = { ...state, locations: state.locations.map(l => l.videos === undefined ? { ...l, videos: previous.locations.find(old => old.id === l.id)?.videos || [] } : l) };
+      validate(state);
+      if (previous.tours.some(t => !state.tours.some(n => n.id === t.id))) throw Object.assign(new Error('Không hỗ trợ xóa tour vĩnh viễn.'), {status:400});
+      db.exec('DELETE FROM tour_stops; DELETE FROM location_videos; DELETE FROM location_photos; DELETE FROM location_checklist; DELETE FROM location_history;');
+      const retainedLocations = new Set(state.locations.map(l => l.id));
+      for (const location of previous.locations) if (!retainedLocations.has(location.id)) db.prepare('DELETE FROM scout_locations WHERE id=?').run(location.id);
       for (const l of state.locations) {
         const row = {};
         for (const k of ['id','code','name','region','description','scouting_notes','best_time_to_shoot','status','scouting_status','access','created_at','updated_at']) row[k] = l[k];
         Object.assign(row, { latitude:l.coordinates.lat, longitude:l.coordinates.lng, drone_permitted:Number(l.drone_permitted) });
         for (const k of ['camera_angles','tags','drive_reference']) row[k] = JSON.stringify(l[k]);
         upsert('scout_locations', row);
+        (l.videos || []).forEach((v,i) => upsert('location_videos', { id:v.id, location_id:l.id, position:i, url:v.url, caption:v.caption, duration:v.duration }));
         l.photos.forEach((p,i) => upsert('location_photos', { id:p.id, location_id:l.id, position:i, url:p.url, caption:p.caption }));
         l.checklist.forEach((c,i) => upsert('location_checklist', { id:c.id, location_id:l.id, position:i, label:c.label, done:Number(c.done) }));
         l.history.forEach(h => upsert('location_history', { id:h.id, location_id:l.id, at:h.at, action:h.action }));
@@ -109,5 +118,22 @@ export function openStore(filename) {
     async get(id) { return db.prepare('SELECT bytes FROM scout_photo_assets WHERE id=?').get(id)?.bytes ?? null; },
     async put(id, bytes) { db.prepare('INSERT OR IGNORE INTO scout_photo_assets (id,bytes,created_at) VALUES (?,?,?)').run(id, bytes, new Date().toISOString()); },
   };
-  return { read, write, photos, close: () => db.close() };
+  const videos = {
+    async get(id) {
+      const asset = db.prepare('SELECT mime,duration,size FROM scout_video_assets WHERE id=?').get(id);
+      if (!asset) return null;
+      const bytes = new Uint8Array(asset.size);
+      for (const chunk of db.prepare('SELECT position,bytes FROM scout_video_chunks WHERE asset_id=? ORDER BY position').all(id)) bytes.set(chunk.bytes, chunk.position * VIDEO_CHUNK_BYTES);
+      return { ...asset, bytes };
+    },
+    async put(id, asset) {
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        db.prepare('INSERT OR IGNORE INTO scout_video_assets (id,mime,duration,size,created_at) VALUES (?,?,?,?,?)').run(id,asset.mime,asset.duration,asset.bytes.length,new Date().toISOString());
+        for (let at=0; at<asset.bytes.length; at+=VIDEO_CHUNK_BYTES) db.prepare('INSERT OR IGNORE INTO scout_video_chunks (asset_id,position,bytes) VALUES (?,?,?)').run(id,at/VIDEO_CHUNK_BYTES,asset.bytes.slice(at,at+VIDEO_CHUNK_BYTES));
+        db.exec('COMMIT');
+      } catch (e) { db.exec('ROLLBACK'); throw e; }
+    },
+  };
+  return { read, write, photos, videos, close: () => db.close() };
 }

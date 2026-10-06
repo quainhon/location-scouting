@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS location_history (
   at TEXT NOT NULL, action TEXT NOT NULL
 );
 -- API writes are transactional and use workspace_meta.revision for conflict detection.
--- Locations/tours cannot be hard-deleted through the API. Archive via status.
+-- Tour records cannot be hard-deleted through the API. Locations may be explicitly deleted after their tour stops and details are removed transactionally.
 -- drive_reference stores folder_id/folder_url/asset_count/last_synced_at only;
 -- referenced Drive content is not duplicated or claimed as synchronized.
 -- Small, normalized JPEG scout captures; immutable content-addressed assets.
@@ -73,3 +73,8 @@ CREATE TABLE IF NOT EXISTS scout_photo_assets (
   bytes BLOB NOT NULL CHECK(length(bytes) <= 1000000),
   created_at TEXT NOT NULL
 );
+
+-- Short video metadata and immutable assets. 1 MB chunks support local SQLite and D1.
+CREATE TABLE IF NOT EXISTS location_videos (id TEXT PRIMARY KEY, location_id TEXT NOT NULL REFERENCES scout_locations(id), position INTEGER NOT NULL, url TEXT NOT NULL, caption TEXT NOT NULL DEFAULT '', duration REAL NOT NULL CHECK(duration>0 AND duration<=15));
+CREATE TABLE IF NOT EXISTS scout_video_assets (id TEXT PRIMARY KEY, mime TEXT NOT NULL, duration REAL NOT NULL, size INTEGER NOT NULL CHECK(size<=20000000), created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS scout_video_chunks (asset_id TEXT NOT NULL REFERENCES scout_video_assets(id), position INTEGER NOT NULL, bytes BLOB NOT NULL CHECK(length(bytes)<=1000000), PRIMARY KEY(asset_id,position));

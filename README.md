@@ -26,7 +26,7 @@ Mở http://127.0.0.1:3001. Chỉ bind localhost; chưa phải dịch vụ nhi�
 
 - Tạo/chọn tour, tạo/sửa địa điểm; đổi thứ tự bằng nút lên/xuống.
 - Thư viện độc lập, thêm địa điểm vào nhiều tour, Remove Pin chỉ bỏ liên kết.
-- Archive/Restore bảo toàn thông tin và các tour đã liên kết.
+- Archive/Restore bảo toàn thông tin và các tour đã liên kết. Xóa vĩnh viễn có xác nhận, gỡ spot khỏi các tour và xóa metadata liên quan.
 - Trạng thái khảo sát, tọa độ, giờ phù hợp, đường vào, mô tả, highlights, ghi chú.
 - Mobile: chụp ảnh bằng camera hoặc chọn nhiều ảnh, xem trước/bỏ ảnh rồi lưu cùng địa điểm. Có thể thêm ảnh vào địa điểm đã lưu. Gallery hỗ trợ ảnh tải lên và URL ảnh có sẵn.
 - Folder mở thư mục Google Drive đã liên kết; không đọc file riêng tư hoặc giả số lượng ảnh.
@@ -70,6 +70,7 @@ Nguồn bản đồ: [Leaflet](https://leafletjs.com/reference), [Esri imagery a
 
 - Điện thoại mở thẳng bản đồ với **+ Scout**, **Đã scout** và **Thư viện**. Lưu nhanh không yêu cầu tên hoặc chọn tour. Xem [Mobile Scout UI](docs/MOBILE_SCOUT_UI.md) và [Photo Upload](docs/PHOTO_UPLOAD.md).
 - **Xem tất cả spots** cho chọn nhiều địa điểm đang hoạt động, đổi thứ tự, đặt tên rồi tạo một tour mới trong một lần lưu. Địa điểm và tour cũ được giữ nguyên.
+- Giao diện mobile map-first có tab **Lộ trình** để chọn tour đã lưu, tạo tour từ nhiều spots, đổi thứ tự điểm dừng đã lưu, và mở map xem tuyến lái xe được tính lại theo thứ tự.
 - Trong tour: map chiếm không gian chính, danh sách điểm có thể mở/thu gọn. Chọn pin zoom tới mức 17 và hiện thẻ nhỏ; **Chi tiết** mở panel ghi chú/ảnh/checklist hiện có.
 - Kéo một ngón, zoom hai ngón hoặc nút +/−. **Thêm spot trên map** bật chế độ đặt pin; chạm bình thường không mở form. **Xem toàn bộ lộ trình** bao gồm cả geometry của đường đi đã tải.
 - Bản đồ đường phố là mặc định. Satellite yêu cầu `blankTile=false`, dùng mức ảnh gốc tối đa 17 rồi phóng ảnh khi zoom gần hơn; tự chuyển về Map khi nhà cung cấp thiếu ảnh. Mức zoom giao diện tối đa 20.
@@ -79,3 +80,4 @@ Nguồn bản đồ: [Leaflet](https://leafletjs.com/reference), [Esri imagery a
 
 PC cũng dùng dropdown lộ trình, nút Xem tất cả spots và chọn nhiều spots để tạo tour theo thứ tự. Scout Library ở thanh bên vẫn cho xem chi tiết / thêm điểm vào tour hiện tại.
 
+- Video spot: MP4/MOV tối đa 15 giây, 20 MB/clip, 4 clip/spot; xem và tải trực tiếp. Xem docs/VIDEO_UPLOAD.md.

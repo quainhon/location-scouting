@@ -16,5 +16,5 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "tests", "functions/api/photos"]
+  "include": ["src", "tests", "functions/api/photos", "functions/api/videos", "functions/api/workspace.ts"]
 }

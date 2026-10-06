@@ -126,8 +126,8 @@ export function moveStop(tour: Tour, stopId: string, direction: 'up' | 'down'): 
 
 /**
  * Domain Invariant 5:
- * Soft delete / Archive:
- * Hard delete is disabled; status transitions to 'archived'.
+ * Archive is reversible. Explicit permanent deletion is handled by the workspace and updates every linked tour.
+ * Permanent deletion requires confirmation; archive remains available for reversible cleanup.
  */
 export function archiveLocation(location: ScoutLocation): ScoutLocation {
   return {

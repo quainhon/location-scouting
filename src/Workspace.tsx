@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { Compass, Map as MapIcon, Plus, X, Search, Archive, MapPin, Clock, Hourglass, Car, FileText, Star, Copy, ExternalLink, Pencil, LocateFixed, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, GripVertical, FolderOpen, Check, Download, Route, Camera, ListChecks, History, LoaderCircle } from 'lucide-react';
+import { Compass, Map as MapIcon, Plus, X, Search, Archive, MapPin, Clock, Hourglass, Car, FileText, Star, Copy, ExternalLink, Pencil, LocateFixed, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, GripVertical, FolderOpen, Check, Download, Route, Camera, ListChecks, History, LoaderCircle, Trash2 } from 'lucide-react';
 import type { ScoutLocation, Tour } from './types/scout';
 import { addStopToTour, removeStopFromTour, moveStop, reorderTourStops, hydrateTourStops, populateTour } from './utils/invariants';
 import { ScoutMap } from './components/ScoutMap';
@@ -7,6 +7,7 @@ import { TourBuilder } from './components/MobileTours';
 
 import { PHOTO_PATH } from '../shared/photos.mjs';
 import { MobileScout } from './components/MobileScout';
+import { AddLocationVideos, VideoGallery } from './components/ScoutVideos';
 
 type WorkspaceData = { revision: number; locations: ScoutLocation[]; tours: Tour[] };
 const statusLabels = { not_scouted: 'Not scouted', candidate: 'Candidate', scouted: 'Scouted', approved: 'Approved' };
@@ -30,7 +31,9 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 export function Workspace() {
   const [data, setData] = useState<WorkspaceData | null>(null);
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [saving, setBusy] = useState(false);
+  const [mediaBusy, setMediaBusy] = useState(false);
+  const busy = saving || mediaBusy;
   const lock = useRef(false);
   const [activeId, setActiveId] = useState('');
   const [selectedId, setSelectedId] = useState('');
@@ -114,6 +117,19 @@ export function Workspace() {
     if (!data) return;
     return save({ ...data, tours: data.tours.map(t => t.id === next.id ? next : t), locations: data.locations.map(l => l.id === locationId && action ? stamp(l, action) : l) });
   }
+  async function deleteLocation(location: ScoutLocation) {
+    if (!data || busy) return false;
+    const linkedTours = data.tours.filter(t => t.stops.some(s => s.location_id === location.id));
+    const impact = linkedTours.length ? ' Spot cũng sẽ bị gỡ khỏi ' + linkedTours.length + ' lộ trình.' : '';
+    if (!window.confirm('Xóa vĩnh viễn spot ' + location.name + '?' + impact + ' Liên kết ảnh, checklist và lịch sử của spot sẽ bị xóa. Không thể hoàn tác.')) return false;
+    const tours = data.tours.map(t => {
+      const stops = t.stops.filter(s => s.location_id !== location.id).map((s, index) => ({ ...s, stop_order: index + 1 }));
+      return stops.length === t.stops.length ? t : { ...t, stops, updated_at: now() };
+    });
+    const saved = await save({ ...data, locations: data.locations.filter(l => l.id !== location.id), tours });
+    if (saved) { setSelectedId(''); setMobileDetails(false); setLibrary(null); setMessage('Đã xóa spot và cập nhật các lộ trình liên quan.'); }
+    return saved;
+  }
   async function add(l: ScoutLocation) {
     if (!tour) { setTourEditor(true); return; }
     if (l.status === 'archived' || tour.stops.some(s => s.location_id === l.id)) return;
@@ -140,7 +156,7 @@ export function Workspace() {
       status: old?.status || 'active', scouting_status: text(form, 'status') as ScoutLocation['scouting_status'], access: text(form, 'access'),
       drive_reference: { ...old?.drive_reference, folder_url: folder || undefined, folder_id: folderId, asset_count: old?.drive_reference.asset_count || 0 },
       photos: photoUrls.map(url => old?.photos?.find(p => p.url === url) || { id: uid(), url, caption: '' }),
-      checklist: old?.checklist || [], history: old?.history || [], created_at: old?.created_at || now(), updated_at: now(),
+      videos: old?.videos || [], checklist: old?.checklist || [], history: old?.history || [], created_at: old?.created_at || now(), updated_at: now(),
     }, old ? 'Cập nhật thông tin địa điểm' : 'Tạo địa điểm');
     const locations = old ? data.locations.map(l => l.id === old.id ? location : l) : [...data.locations, location];
     let tours = data.tours;
@@ -161,7 +177,7 @@ export function Workspace() {
       <div className="header-actions"><button aria-label="Xem tất cả spots" onClick={browseSpots}><MapIcon size={19} /><span>Xem tất cả spots</span></button><button className="primary" onClick={() => openNewLocation()} disabled={!data || busy}><Plus size={19} /> Add Spot</button><button className="avatar" title="Xuất bản sao dữ liệu JSON" aria-label="Xuất dữ liệu" onClick={exportData} disabled={!data}><Download size={19} /></button></div>
     </header>
     {error && <div className="error-banner" role="alert">{error}<button onClick={() => void load()} disabled={busy}>Tải lại dữ liệu</button><button className="icon-button" onClick={() => setError('')} aria-label="Đóng thông báo"><X size={16} /></button></div>}
-    {isMobile && <MobileScout locations={data?.locations || []} ready={!!data} busy={busy} error={error} onEdit={setEdit} onUpdate={updateLocation} onCreate={async location => {
+    {isMobile && <MobileScout locations={data?.locations || []} tours={data?.tours || []} activeTourId={tour?.id || ''} ready={!!data} busy={busy} error={error} onChooseTour={chooseTour} onCreateTour={createSelectedTour} onUpdateTour={async (next, locationId, action) => (await updateTour(next, locationId, action)) ?? false} onDelete={deleteLocation} onEdit={setEdit} onUpdate={updateLocation} onCreate={async location => {
       if (!data) return false;
       return save({ ...data, locations: [...data.locations.filter(l => l.id !== location.id), location] });
     }} />}
@@ -192,6 +208,7 @@ export function Workspace() {
           <div className="detail-toolbar"><label className="status-control"><i className={`dot ${selected.scouting_status || 'not_scouted'}`} /><select aria-label="Trạng thái khảo sát" disabled={busy} value={selected.scouting_status || 'not_scouted'} onChange={e => void updateLocation({ ...selected, scouting_status: e.target.value as ScoutLocation['scouting_status'] }, `Trạng thái: ${statusLabels[e.target.value as keyof typeof statusLabels]}`)}>{Object.entries(statusLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label><a className="button subtle" href={`https://www.google.com/maps/search/?api=1&query=${selected.coordinates.lat},${selected.coordinates.lng}`} target="_blank" rel="noreferrer"><ExternalLink size={16} />Open in Maps</a></div>
           <div className="detail-scroll"><div className="gallery"><Photo url={photos[Math.min(photoIndex, photos.length - 1)]?.url} name={selected.name} className="hero-photo" />{photos.length > 1 && <><button className="gallery-prev" aria-label="Ảnh trước" onClick={() => setPhotoIndex(i => (i - 1 + photos.length) % photos.length)}><ChevronLeft /></button><button className="gallery-next" aria-label="Ảnh tiếp theo" onClick={() => setPhotoIndex(i => (i + 1) % photos.length)}><ChevronRight /></button></>}{photos.length > 0 && <span className="photo-count">{Math.min(photoIndex + 1, photos.length)} / {photos.length}</span>}</div>
           <div className="thumbnails">{photos.map((p, i) => <button key={p.id} className={i === photoIndex ? 'active' : ''} onClick={() => setPhotoIndex(i)} aria-label={`Xem ảnh ${i + 1}`}><Photo url={p.url} name={`Ảnh ${i + 1}`} /></button>)}<button className="add-photo" aria-label="Thêm ảnh" onClick={() => setEdit(selected)} disabled={busy}><Plus size={22} /></button></div>
+          <VideoGallery videos={selected.videos || []} /><AddLocationVideos key={selected.id} existingCount={selected.videos?.length || 0} busy={busy} onBusyChange={setMediaBusy} onSave={videos => updateLocation({ ...selected, videos: [...(selected.videos || []).filter(v => !videos.some(n => n.id === v.id)), ...videos] }, 'Thêm video khảo sát')} />
           <div className="tabs" role="tablist" aria-label="Thông tin địa điểm">{['Details', 'Folder', 'Notes', 'Checklist', 'History'].map(t => <button key={t} id={`tab-${t}`} role="tab" aria-selected={tab === t} aria-controls="detail-content" className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>{t}</button>)}</div>
           <div id="detail-content" role="tabpanel" aria-labelledby={`tab-${tab}`} className="tab-content">
           {tab === 'Details' && <><dl className="facts"><div><dt><MapPin />Coordinates</dt><dd>{selected.coordinates.lat.toFixed(4)}, {selected.coordinates.lng.toFixed(4)}<button className="icon-button" aria-label="Sao chép tọa độ" onClick={() => { void navigator.clipboard.writeText(`${selected.coordinates.lat}, ${selected.coordinates.lng}`).then(() => setMessage('Đã sao chép tọa độ.')).catch(() => setError('Trình duyệt không cho phép sao chép.')); }}><Copy size={16} /></button></dd></div><div><dt><Clock />Best time</dt><dd>{selected.best_time_to_shoot || 'Chưa ghi nhận'}</dd></div><div><dt><Hourglass />Duration</dt><dd>{selectedStop ? `${selectedStop.planned_duration_minutes} minutes` : 'Chưa có trong tour'}</dd></div><div><dt><Car />Access</dt><dd>{selected.access || 'Chưa ghi nhận'}</dd></div></dl>
@@ -202,7 +219,7 @@ export function Workspace() {
           {tab === 'Checklist' && <><div className="tab-title"><ListChecks /><h3>Chuẩn bị khảo sát</h3><span className="count">{selected.checklist?.filter(c => c.done).length || 0}/{selected.checklist?.length || 0}</span></div>{!selected.checklist?.length && <p className="muted">Thêm những việc cần chuẩn bị cho địa điểm này.</p>}{selected.checklist?.map(c => <div className="check-row" key={c.id}><label><input type="checkbox" checked={c.done} disabled={busy} onChange={() => void updateLocation({ ...selected, checklist: selected.checklist?.map(item => item.id === c.id ? { ...item, done: !item.done } : item) }, `${c.done ? 'Mở lại' : 'Hoàn thành'}: ${c.label}`)} /><span className={c.done ? 'done' : ''}>{c.label}</span></label><button className="icon-button" disabled={busy} aria-label={`Xóa ${c.label}`} onClick={() => void updateLocation({ ...selected, checklist: selected.checklist?.filter(item => item.id !== c.id) }, `Bỏ checklist: ${c.label}`)}><X size={15} /></button></div>)}<form className="check-form" onSubmit={e => { e.preventDefault(); if (checkLabel.trim()) void updateLocation({ ...selected, checklist: [...(selected.checklist || []), { id: uid(), label: checkLabel.trim(), done: false }] }, `Thêm checklist: ${checkLabel.trim()}`).then(ok => ok && setCheckLabel('')); }}><input aria-label="Việc cần chuẩn bị" placeholder="Thêm việc cần chuẩn bị…" value={checkLabel} onChange={e => setCheckLabel(e.target.value)} required /><button disabled={busy || !checkLabel.trim()} aria-label="Thêm checklist"><Plus size={18} /></button></form></>}
           {tab === 'History' && <><div className="tab-title"><History /><h3>Lịch sử địa điểm</h3></div>{selected.history?.map(h => <div className="history-item" key={h.id}><span /><div><p>{h.action}</p><time dateTime={h.at}>{new Date(h.at).toLocaleString('vi-VN')}</time></div></div>)}</>}
           </div></div>
-          <div className="detail-actions"><button disabled={busy || !tour || !!selectedStop || selected.status === 'archived'} onClick={() => void add(selected)}><Plus size={16} />Add to Tour</button><button onClick={() => setEdit(selected)} disabled={busy}><Pencil size={16} />Edit</button><button className="danger" disabled={busy || !selectedStop} onClick={() => tour && selectedStop && void updateTour(removeStopFromTour(tour, selectedStop.id), selected.id, `Bỏ pin khỏi tour “${tour.title}”`)}><MapPin size={16} />Remove Pin</button><button disabled={busy} onClick={() => void updateLocation({ ...selected, status: selected.status === 'active' ? 'archived' : 'active' }, selected.status === 'active' ? 'Lưu trữ địa điểm' : 'Khôi phục địa điểm')}><Archive size={16} />{selected.status === 'archived' ? 'Restore' : 'Archive'}</button></div>
+          <div className="detail-actions"><button disabled={busy || !tour || !!selectedStop || selected.status === 'archived'} onClick={() => void add(selected)}><Plus size={16} />Add to Tour</button><button onClick={() => setEdit(selected)} disabled={busy}><Pencil size={16} />Edit</button><button className="danger" disabled={busy || !selectedStop} onClick={() => tour && selectedStop && void updateTour(removeStopFromTour(tour, selectedStop.id), selected.id, `Bỏ pin khỏi tour “${tour.title}”`)}><MapPin size={16} />Remove Pin</button><button disabled={busy} onClick={() => void updateLocation({ ...selected, status: selected.status === 'active' ? 'archived' : 'active' }, selected.status === 'active' ? 'Lưu trữ địa điểm' : 'Khôi phục địa điểm')}><Archive size={16} />{selected.status === 'archived' ? 'Restore' : 'Archive'}</button><button className='danger' disabled={busy} onClick={() => void deleteLocation(selected)}><Trash2 size={16} />Delete spot</button></div>
         </>}
       </aside>
     </main>}

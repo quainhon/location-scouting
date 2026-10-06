@@ -6,6 +6,8 @@
  */
 
 import { PHOTO_PATH } from '../../shared/photos.mjs';
+import { VIDEO_SCHEMAS, validVideos } from '../../shared/videos.mjs';
+import type { D1Database, D1PreparedStatement } from '../d1-types';
 
 interface Env {
   location_scout_db: D1Database;
@@ -47,8 +49,10 @@ function validate(state: unknown): void {
       !unique((s.tours as Record<string, unknown>[]).map(t => t.id)))
     fail('ID trùng lặp.');
 
-  const allChildIds: Record<string, string[]> = { photos: [], checklist: [], history: [], stops: [] };
+  const allChildIds: Record<string, string[]> = { photos: [], videos: [], checklist: [], history: [], stops: [] };
   for (const l of s.locations as Record<string, unknown>[]) {
+    if (!validVideos(l.videos)) fail('Video phải là clip đã tải lên, tối đa 15 giây và 4 clip/spot.');
+    for (const v of (l.videos ?? []) as { id: string }[]) allChildIds.videos.push(v.id);
     if (!id(l.id) || !id(l.code) || !string(l.name) || !(l.name as string).trim() ||
         !['active', 'archived'].includes(l.status as string)) fail('Địa điểm không hợp lệ.');
     const c = l.coordinates as Record<string, unknown>;
@@ -122,6 +126,7 @@ async function readWorkspace(db: D1Database) {
 
   const locations = await Promise.all((locationRows.results ?? []).map(async (row) => {
     const { latitude, longitude, camera_angles, tags, drive_reference, drone_permitted, ...rest } = row;
+    const videos = await db.prepare('SELECT id,url,caption,duration FROM location_videos WHERE location_id=? ORDER BY position').bind(row.id).all<{ id: string; url: string; caption: string; duration: number }>();
     const photos = await db.prepare(
       'SELECT id,url,caption FROM location_photos WHERE location_id=? ORDER BY position'
     ).bind(row.id).all<{ id: string; url: string; caption: string }>();
@@ -133,12 +138,14 @@ async function readWorkspace(db: D1Database) {
     ).bind(row.id).all<{ id: string; at: string; action: string }>();
     return {
       ...rest,
+      id: row.id,
       coordinates: { lat: latitude, lng: longitude },
       camera_angles: JSON.parse(camera_angles as string),
       tags: JSON.parse(tags as string),
       drive_reference: JSON.parse(drive_reference as string),
       drone_permitted: Boolean(drone_permitted),
       photos: photos.results ?? [],
+      videos: videos.results ?? [],
       checklist: (checklist.results ?? []).map(c => ({ ...c, done: Boolean(c.done) })),
       history: history.results ?? [],
     };
@@ -174,11 +181,13 @@ async function writeWorkspace(db: D1Database, state: Record<string, unknown>) {
     err.status = 409;
     throw err;
   }
+  state = { ...state, locations: (state.locations as Record<string, unknown>[]).map(l => l.videos === undefined ? { ...l, videos: previous.locations.find(old => old.id === l.id)?.videos || [] } : l) };
+  validate(state);
   const prevLocIds = new Set(previous.locations.map((l: Record<string, unknown>) => l.id));
   const prevTourIds = new Set(previous.tours.map((t: Record<string, unknown>) => t.id));
   const nextLocIds = new Set((state.locations as Record<string, unknown>[]).map(l => l.id));
   const nextTourIds = new Set((state.tours as Record<string, unknown>[]).map(t => t.id));
-  if ([...prevLocIds].some(id => !nextLocIds.has(id)) || [...prevTourIds].some(id => !nextTourIds.has(id))) {
+  if ([...prevTourIds].some(id => !nextTourIds.has(id))) {
     const err = new Error('Không hỗ trợ xóa vĩnh viễn. Hãy dùng Archive.') as Error & { status: number };
     err.status = 400;
     throw err;
@@ -190,6 +199,8 @@ async function writeWorkspace(db: D1Database, state: Record<string, unknown>) {
   stmts.push(db.prepare('DELETE FROM location_photos'));
   stmts.push(db.prepare('DELETE FROM location_checklist'));
   stmts.push(db.prepare('DELETE FROM location_history'));
+  stmts.push(db.prepare('DELETE FROM location_videos'));
+  for (const id of prevLocIds) if (!nextLocIds.has(id)) stmts.push(db.prepare('DELETE FROM scout_locations WHERE id=?').bind(id));
 
   for (const l of state.locations as Record<string, unknown>[]) {
     const c = l.coordinates as { lat: number; lng: number };
@@ -210,6 +221,7 @@ async function writeWorkspace(db: D1Database, state: Record<string, unknown>) {
       JSON.stringify(l.drive_reference), JSON.stringify(l.tags),
       l.status, l.scouting_status, l.access, l.created_at, l.updated_at
     ));
+    ((l.videos ?? []) as Record<string, unknown>[]).forEach((v, i) => stmts.push(db.prepare('INSERT INTO location_videos (id,location_id,position,url,caption,duration) VALUES (?,?,?,?,?,?)').bind(v.id,l.id,i,v.url,v.caption,v.duration)));
     (l.photos as Record<string, unknown>[]).forEach((p, i) =>
       stmts.push(db.prepare('INSERT INTO location_photos (id,location_id,position,url,caption) VALUES (?,?,?,?,?)').bind(p.id, l.id, i, p.url, p.caption)));
     (l.checklist as Record<string, unknown>[]).forEach((c, i) =>
@@ -237,7 +249,7 @@ async function writeWorkspace(db: D1Database, state: Record<string, unknown>) {
         VALUES (?,?,?,?,?,?,?,?,?,?,?)`).bind(
         s.id, s.tour_id, s.location_id, s.stop_order,
         (s.target_arrival_time ?? null), s.planned_duration_minutes, s.focus_scenes,
-        (s.notes ?? null), s.status, Number(s.ai_suggested), Number(s.approved_by_human)
+        (s.notes ?? null), s.status, Number(!!s.ai_suggested), Number(!!s.approved_by_human)
       ));
     }
   }
@@ -251,11 +263,12 @@ async function writeWorkspace(db: D1Database, state: Record<string, unknown>) {
 // ──────────────────────────────────────────────────────────────────────────────
 // Pages Function handler
 // ──────────────────────────────────────────────────────────────────────────────
-export const onRequest: PagesFunction<Env> = async (context) => {
+export const onRequest = async (context: { request: Request; env: Env }): Promise<Response> => {
   const { request, env } = context;
   const db = env.location_scout_db;
 
   try {
+    for (const sql of VIDEO_SCHEMAS) await db.prepare(sql).run();
     if (request.method === 'GET') {
       return json(200, await readWorkspace(db));
     }

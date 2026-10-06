@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { openStore } from './store.mjs';
 import { Readable } from 'node:stream';
 import { photoResponse } from '../shared/photos.mjs';
+import { videoResponse } from '../shared/videos.mjs';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const filename = process.env.SCOUT_DB || resolve(root,'data/scout.sqlite');
 mkdirSync(resolve(filename,'..'), {recursive:true});
@@ -18,6 +19,11 @@ const server = createServer(async (req,res) => {
     if (path.startsWith('/api/')) {
       if (!['127.0.0.1','localhost','[::1]'].includes((req.headers.host || '').split(':')[0])) return json(403,{error:'Local access only.'});
       if (req.headers.origin && !['127.0.0.1','localhost'].includes(new URL(req.headers.origin).hostname)) return json(403,{error:'Origin not allowed.'});
+      if (path.startsWith('/api/videos/')) {
+        const request = new Request('http://' + req.headers.host + path, { method:req.method, headers:req.headers, ...(!['GET','HEAD'].includes(req.method) ? { body:Readable.toWeb(req), duplex:'half' } : {}) });
+        const result = await videoResponse(request, path.slice('/api/videos/'.length), store.videos);
+        res.writeHead(result.status,Object.fromEntries(result.headers)); res.end(Buffer.from(await result.arrayBuffer())); return;
+      }
       if (path.startsWith('/api/photos/')) {
         const request = new Request(`http://${req.headers.host}${path}`, {
           method: req.method, headers: req.headers,

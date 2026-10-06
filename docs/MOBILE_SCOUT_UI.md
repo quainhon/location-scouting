@@ -13,7 +13,7 @@ At widths up to 650px, the workspace opens directly on the map. Desktop retains 
 
 ## Review
 
-The three tabs are Map, Scouts, and Library. Today uses the device's local calendar date. Search covers name, region and notes. Existing candidate/not_scouted records appear as needing review; scouted and approved retain their existing stored values. Archive is reversible from Library → Archived.
+The four tabs are Map, Routes, Scouts, and Library. Routes lets you select a saved tour, create a tour by selecting active spots and setting their order, then move saved stops up or down. Opening View route returns to the map with the selected tour pins and real driving route in that order. Today uses the device's local calendar date. Search covers name, region and notes. Existing candidate/not_scouted records appear as needing review; scouted and approved retain their existing stored values. Archive is reversible from Library → Archived. On a route, a stop can be removed without deleting the library spot. Permanent spot deletion is available from spot details after an explicit confirmation and also removes the spot from every linked tour.
 
 ## Scope
 
