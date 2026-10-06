@@ -4,6 +4,11 @@ import 'leaflet/dist/leaflet.css';
 import { LocateFixed, Minus, Plus, MapPin, X, Car, LoaderCircle } from 'lucide-react';
 import type { ScoutLocation, HydratedTourStop, GeoPoint } from '../types/scout';
 import { fetchDrivingRoute, routeKey, type DrivingRoute } from '../utils/routing';
+
+// Location Scout opens on Quài Nhơn's core scouting area around Hoài Nhơn / Tam Quan.
+const QUAI_NHON_CENTER: [number, number] = [14.48, 109.035];
+const QUAI_NHON_DESKTOP_ZOOM = 13;
+const QUAI_NHON_MOBILE_ZOOM = 12;
 export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft, draftPoint, fitSignal, pickSignal = 0, showThumbnails = false, focusSelected = true }: { locations: ScoutLocation[]; stops: HydratedTourStop[]; selectedId: string; onSelect: (id: string) => void; onCreateDraft: (point: GeoPoint) => void; draftPoint: GeoPoint | null; fitSignal: number; pickSignal?: number; showThumbnails?: boolean; focusSelected?: boolean }) {
   const root = useRef<HTMLDivElement>(null); const map = useRef<L.Map | null>(null);
   const [layer, setLayer] = useState<'satellite' | 'map'>('map');
@@ -24,14 +29,14 @@ export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft
   const routeRef = useRef(activeRoute); routeRef.current = activeRoute;
   useEffect(() => {
     if (!root.current) return;
-    const instance = L.map(root.current, { zoomControl: false, dragging: true, touchZoom: true, scrollWheelZoom: true, doubleClickZoom: true, minZoom: 3, maxZoom: 20 }).setView([13.776, 109.223], 12);
+    const mobileViewport = window.matchMedia('(max-width: 650px)').matches;
+    const instance = L.map(root.current, { zoomControl: false, dragging: true, touchZoom: true, scrollWheelZoom: true, doubleClickZoom: true, minZoom: 3, maxZoom: 20 }).setView(QUAI_NHON_CENTER, mobileViewport ? QUAI_NHON_MOBILE_ZOOM : QUAI_NHON_DESKTOP_ZOOM);
     map.current = instance;
     instance.on('zoomend', () => setZoom(instance.getZoom()));
     instance.on('click', (event: L.LeafletMouseEvent) => {
       if (!placingRef.current) return;
       setPlacing(false); createDraft.current({ lat: event.latlng.lat, lng: event.latlng.lng });
     });
-    const mobileViewport = window.matchMedia('(max-width: 650px)').matches;
     let delayedResize: number | undefined;
     const refreshMapSize = () => {
       const invalidate = () => {
@@ -161,7 +166,7 @@ export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft
     const latlngs: [number, number][] = points.map(l => [l.coordinates.lat, l.coordinates.lng]);
     if (routeRef.current) latlngs.push(...routeRef.current.points);
     if (latlngs.length) instance.fitBounds(L.latLngBounds(latlngs), { paddingTopLeft: [40, 135], paddingBottomRight: [50, 140], maxZoom: points.length === 1 ? 17 : 16 });
-    else instance.setView([13.776, 109.223], 12);
+    else instance.setView(QUAI_NHON_CENTER, window.matchMedia('(max-width: 650px)').matches ? QUAI_NHON_MOBILE_ZOOM : QUAI_NHON_DESKTOP_ZOOM);
   }
   useEffect(() => { fit(); }, [fitSignal, key]);
   // A selection focuses closely without continually resetting the user's pan/zoom.
