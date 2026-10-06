@@ -29,3 +29,21 @@ dialog.scout-sheet{position:fixed;inset:auto 0 0;width:100%;max-width:650px;max-
 .scout-route-map-fullscreen .map-error{top:calc(max(12px,env(safe-area-inset-top)) + 56px);left:12px;right:12px;z-index:1203}
 .scout-route-map-fullscreen .leaflet-control-attribution{max-width:72%;font-size:8px!important}
 .scout-route-map-close{position:absolute;top:max(12px,env(safe-area-inset-top));left:12px;z-index:1204;width:46px;min-width:46px;height:46px;padding:0;border:1px solid #d9ded2;background:#fffdf6;color:#294f3c;box-shadow:0 3px 16px #183b2426;border-radius:50%!important}
+
+/* Compact photo pins for route review. The number stays readable without covering the map. */
+.scout-route-map-fullscreen .pin:not(.route-thumb-pin){width:34px;height:34px}
+.scout-route-map-fullscreen .pin:not(.route-thumb-pin)>span{font-size:14px}
+.scout-route-map-fullscreen .pin.route-thumb-pin{position:relative;display:block;width:40px;height:40px;border-radius:11px;transform:none;background:#dfe5d8;border:2px solid #fff;overflow:visible;box-shadow:0 3px 10px #142d3760}
+.scout-route-map-fullscreen .pin.route-thumb-pin img{display:block;width:100%;height:100%;object-fit:cover;border-radius:8px;background:#e7ebdf}
+.scout-route-map-fullscreen .pin.route-thumb-pin>.pin-order{position:absolute;right:-7px;bottom:-7px;display:flex;align-items:center;justify-content:center;width:21px;height:21px;border-radius:50%;transform:none!important;background:#247c99;color:#fff;border:2px solid #fff;font-size:11px;font-weight:750;line-height:1;box-shadow:0 2px 7px #17364255}
+.scout-route-map-fullscreen .pin.route-thumb-pin.selected{width:42px;height:42px;background:#dfe5d8;border-color:#294f3c;box-shadow:0 0 0 3px #fffdf6cc,0 4px 12px #142d3770}
+.scout-route-map-fullscreen .pin.route-thumb-pin.selected>.pin-order{background:#294f3c}
+
+/* Tap a route spot, then reveal only the two ordering actions needed in the field. */
+.scout-route-reorder{position:absolute;left:12px;bottom:max(18px,env(safe-area-inset-bottom));z-index:1205;display:flex;flex-direction:column;align-items:flex-start;gap:7px;pointer-events:none}
+.scout-route-reorder>*{pointer-events:auto}
+.scout-route-reorder-actions{display:flex;flex-direction:column;gap:6px}
+.scout-route-reorder-actions button{display:flex;align-items:center;justify-content:flex-start;gap:7px;width:104px;min-height:42px;padding:7px 11px;background:#fffdf6;color:#294f3c;border:1px solid #d9ded2;box-shadow:0 3px 14px #183b2422;font-size:12px!important}
+.scout-route-reorder-toggle{display:flex;align-items:center;gap:7px;min-height:44px;padding:8px 12px;background:#294f3c!important;color:#fffdf6!important;border:1px solid #294f3c!important;box-shadow:0 3px 14px #183b2430;font-size:12px!important}
+.scout-route-reorder-toggle b{display:flex;align-items:center;justify-content:center;min-width:22px;height:22px;margin-left:2px;padding:0 6px;border-radius:11px;background:#fffdf6;color:#294f3c;font-size:11px}
+
