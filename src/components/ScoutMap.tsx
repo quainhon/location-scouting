@@ -73,43 +73,38 @@ export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft
   useEffect(() => {
     if (!map.current) return;
     setTileError(false);
-    let live = true; let failed = false; let loaded = false; let errorCount = 0;
-    const mobileViewport = window.matchMedia('(max-width: 650px)').matches;
+    let live = true;
+    let loaded = false;
+    let errorCount = 0;
     let fallbackTimer: number | undefined;
-    const switchToSatellite = () => {
-      if (!live || failed || mobileFallbackAttempted.current) return;
-      failed = true;
-      mobileFallbackAttempted.current = true;
-      window.clearTimeout(fallbackTimer);
-      setTileNotice('Bản đồ đường phố chưa tải được. Đã chuyển sang ảnh vệ tinh.');
-      setLayer('satellite');
+    const fallbackOrReportError = () => {
+      if (!live || loaded) return;
+      if (layer === 'map' && !mobileFallbackAttempted.current) {
+        mobileFallbackAttempted.current = true;
+        setTileNotice('Bản đồ đường phố tải quá lâu. Đã chuyển sang Satellite.');
+        setLayer('satellite');
+      } else {
+        setTileError(true);
+      }
     };
     const tile = layer === 'satellite'
       ? L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?blankTile=false', { maxNativeZoom: 17, maxZoom: 20, attribution: 'Tiles © Esri — Esri, Maxar, Earthstar Geographics, GIS User Community' })
       : L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxNativeZoom: 19, maxZoom: 20, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' });
     tile.on('tileload', () => {
+      if (!live) return;
       loaded = true;
       window.clearTimeout(fallbackTimer);
+      setTileError(false);
     });
     tile.on('tileerror', () => {
-      if (!live || failed) return;
+      if (!live || loaded) return;
       errorCount += 1;
-      if (layer === 'map' && mobileViewport) {
-        if (errorCount >= 3) switchToSatellite();
-      } else if (layer === 'satellite' && mobileViewport) {
-        failed = true; setTileError(true);
-      } else {
-        failed = true;
-        if (layer === 'satellite') { setTileNotice('Ảnh vệ tinh chưa có ở đây. Đã chuyển sang bản đồ đường phố.'); setLayer('map'); }
-        else setTileError(true);
-      }
+      if (errorCount >= 3) fallbackOrReportError();
     });
     tile.addTo(map.current);
-    if (layer === 'map' && mobileViewport && !mobileFallbackAttempted.current) {
-      fallbackTimer = window.setTimeout(() => {
-        if (!loaded) switchToSatellite();
-      }, 6000);
-    }
+    // Desktop previously had no tile watchdog. If requests stall instead of erroring,
+    // Leaflet stays blank forever. Apply the same failover to desktop and mobile.
+    fallbackTimer = window.setTimeout(fallbackOrReportError, 6500);
     return () => { live = false; window.clearTimeout(fallbackTimer); tile.remove(); };
   }, [layer, retry]);
   useEffect(() => {
@@ -176,9 +171,9 @@ export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft
     <div className={`leaflet-root ${placing ? 'placing-pin' : ''}`} ref={root} aria-label="Bản đồ tương tác: kéo để di chuyển, chụm hai ngón để zoom" />
     <div className="map-layers"><button className={layer === 'map' ? 'active' : ''} onClick={() => { mobileFallbackAttempted.current = false; setLayer('map'); setTileNotice(''); }}>Map</button><button className={layer === 'satellite' ? 'active' : ''} onClick={() => { mobileFallbackAttempted.current = true; setLayer('satellite'); setTileNotice(''); }}>Satellite</button></div>
     <button className={`place-pin-button ${placing ? 'active' : ''}`} onClick={() => setPlacing(v => !v)} aria-pressed={placing}>{placing ? <X size={16} /> : <MapPin size={16} />}{placing ? 'Hủy đặt pin' : 'Thêm spot trên map'}</button>
-    {placing && <div className="placing-hint" role="status">Kéo / zoom để tìm vị trí, rồi chạm để đặt pin.</div>}
+    {placing && <div className="placing-hint" role="status">Kéo / zoom để tìm vị trí, rồi nhấp hoặc chạm bản đồ để đặt pin.</div>}
     <div className="map-controls"><button aria-label="Xem toàn bộ lộ trình" title="Xem toàn bộ lộ trình" onClick={fit}><LocateFixed size={21} /></button><div><button aria-label="Phóng to" disabled={zoom >= 20} onClick={() => map.current?.zoomIn()}><Plus size={23} /></button><button aria-label="Thu nhỏ" disabled={zoom <= 3} onClick={() => map.current?.zoomOut()}><Minus size={23} /></button></div></div>
-    {(tileError || tileNotice) && <div className="map-error" role="status">{tileError ? 'Chưa tải được bản đồ. Kiểm tra kết nối mạng.' : tileNotice}{tileError && <button onClick={() => setRetry(n => n + 1)}>Thử lại bản đồ</button>}<button aria-label="Đóng thông báo bản đồ" onClick={() => { setTileError(false); setTileNotice(''); }}><X size={14} /></button></div>}
+    {(tileError || tileNotice) && <div className="map-error" role="status">{tileError ? 'Chưa tải được bản đồ. Kiểm tra kết nối mạng.' : tileNotice}{tileError && <button onClick={() => { mobileFallbackAttempted.current = false; setTileNotice(''); setRetry(n => n + 1); }}>Thử lại bản đồ</button>}<button aria-label="Đóng thông báo bản đồ" onClick={() => { setTileError(false); setTileNotice(''); }}><X size={14} /></button></div>}
     {stops.length >= 2 && <div className="route-summary" role="status">{activeRoute ? <><strong><Car size={16} />Ô tô · {(activeRoute.distance / 1000).toFixed(1)} km · ~{Math.max(1, Math.round(activeRoute.duration / 60))} phút đi</strong>{activeRoute.offRoad && <span>Một số pin cách đường ô tô trên 150 m; cần đi bộ đoạn cuối.</span>}</> : routingError ? <><span>{routingError}</span><button onClick={() => setRouteRetry(n => n + 1)}>Thử lại tuyến</button></> : <strong><LoaderCircle className="spin" size={16} />Đang tính tuyến ô tô…</strong>}<small>OSRM / FOSSGIS · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a> · <a href="https://www.openstreetmap.org/" target="_blank" rel="noreferrer">Sửa bản đồ</a></small></div>}
   </>;
 }
