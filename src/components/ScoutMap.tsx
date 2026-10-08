@@ -4,12 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import { LocateFixed, Minus, Plus, MapPin, X, Car, LoaderCircle } from 'lucide-react';
 import type { ScoutLocation, HydratedTourStop, GeoPoint } from '../types/scout';
 import { fetchDrivingRoute, routeKey, type DrivingRoute } from '../utils/routing';
-
-// Location Scout opens on Quài Nhơn's core scouting area around Hoài Nhơn / Tam Quan.
-const QUAI_NHON_CENTER: [number, number] = [14.48, 109.035];
-const QUAI_NHON_DESKTOP_ZOOM = 13;
-const QUAI_NHON_MOBILE_ZOOM = 12;
-export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft, draftPoint, fitSignal, pickSignal = 0, showThumbnails = false, focusSelected = true }: { locations: ScoutLocation[]; stops: HydratedTourStop[]; selectedId: string; onSelect: (id: string) => void; onCreateDraft: (point: GeoPoint) => void; draftPoint: GeoPoint | null; fitSignal: number; pickSignal?: number; showThumbnails?: boolean; focusSelected?: boolean }) {
+export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft, draftPoint, fitSignal, pickSignal = 0 }: { locations: ScoutLocation[]; stops: HydratedTourStop[]; selectedId: string; onSelect: (id: string) => void; onCreateDraft: (point: GeoPoint) => void; draftPoint: GeoPoint | null; fitSignal: number; pickSignal?: number }) {
   const root = useRef<HTMLDivElement>(null); const map = useRef<L.Map | null>(null);
   const [layer, setLayer] = useState<'satellite' | 'map'>('map');
   const mobileFallbackAttempted = useRef(false);
@@ -29,14 +24,14 @@ export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft
   const routeRef = useRef(activeRoute); routeRef.current = activeRoute;
   useEffect(() => {
     if (!root.current) return;
-    const mobileViewport = window.matchMedia('(max-width: 650px)').matches;
-    const instance = L.map(root.current, { zoomControl: false, dragging: true, touchZoom: true, scrollWheelZoom: true, doubleClickZoom: true, minZoom: 3, maxZoom: 20 }).setView(QUAI_NHON_CENTER, mobileViewport ? QUAI_NHON_MOBILE_ZOOM : QUAI_NHON_DESKTOP_ZOOM);
+    const instance = L.map(root.current, { zoomControl: false, dragging: true, touchZoom: true, scrollWheelZoom: true, doubleClickZoom: true, minZoom: 3, maxZoom: 20 }).setView([13.776, 109.223], 12);
     map.current = instance;
     instance.on('zoomend', () => setZoom(instance.getZoom()));
     instance.on('click', (event: L.LeafletMouseEvent) => {
       if (!placingRef.current) return;
       setPlacing(false); createDraft.current({ lat: event.latlng.lat, lng: event.latlng.lng });
     });
+    const mobileViewport = window.matchMedia('(max-width: 650px)').matches;
     let delayedResize: number | undefined;
     const refreshMapSize = () => {
       const invalidate = () => {
@@ -73,38 +68,43 @@ export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft
   useEffect(() => {
     if (!map.current) return;
     setTileError(false);
-    let live = true;
-    let loaded = false;
-    let errorCount = 0;
+    let live = true; let failed = false; let loaded = false; let errorCount = 0;
+    const mobileViewport = window.matchMedia('(max-width: 650px)').matches;
     let fallbackTimer: number | undefined;
-    const fallbackOrReportError = () => {
-      if (!live || loaded) return;
-      if (layer === 'map' && !mobileFallbackAttempted.current) {
-        mobileFallbackAttempted.current = true;
-        setTileNotice('Bản đồ đường phố tải quá lâu. Đã chuyển sang Satellite.');
-        setLayer('satellite');
-      } else {
-        setTileError(true);
-      }
+    const switchToSatellite = () => {
+      if (!live || failed || mobileFallbackAttempted.current) return;
+      failed = true;
+      mobileFallbackAttempted.current = true;
+      window.clearTimeout(fallbackTimer);
+      setTileNotice('Bản đồ đường phố chưa tải được. Đã chuyển sang ảnh vệ tinh.');
+      setLayer('satellite');
     };
     const tile = layer === 'satellite'
       ? L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?blankTile=false', { maxNativeZoom: 17, maxZoom: 20, attribution: 'Tiles © Esri — Esri, Maxar, Earthstar Geographics, GIS User Community' })
       : L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxNativeZoom: 19, maxZoom: 20, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' });
     tile.on('tileload', () => {
-      if (!live) return;
       loaded = true;
       window.clearTimeout(fallbackTimer);
-      setTileError(false);
     });
     tile.on('tileerror', () => {
-      if (!live || loaded) return;
+      if (!live || failed) return;
       errorCount += 1;
-      if (errorCount >= 3) fallbackOrReportError();
+      if (layer === 'map' && mobileViewport) {
+        if (errorCount >= 3) switchToSatellite();
+      } else if (layer === 'satellite' && mobileViewport) {
+        failed = true; setTileError(true);
+      } else {
+        failed = true;
+        if (layer === 'satellite') { setTileNotice('Ảnh vệ tinh chưa có ở đây. Đã chuyển sang bản đồ đường phố.'); setLayer('map'); }
+        else setTileError(true);
+      }
     });
     tile.addTo(map.current);
-    // Desktop previously had no tile watchdog. If requests stall instead of erroring,
-    // Leaflet stays blank forever. Apply the same failover to desktop and mobile.
-    fallbackTimer = window.setTimeout(fallbackOrReportError, 6500);
+    if (layer === 'map' && mobileViewport && !mobileFallbackAttempted.current) {
+      fallbackTimer = window.setTimeout(() => {
+        if (!loaded) switchToSatellite();
+      }, 6000);
+    }
     return () => { live = false; window.clearTimeout(fallbackTimer); tile.remove(); };
   }, [layer, retry]);
   useEffect(() => {
@@ -130,22 +130,7 @@ export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft
     const group = L.layerGroup().addTo(map.current);
     locations.filter(l => l.status === 'active' || stops.some(s => s.location_id === l.id)).forEach(l => {
       const stop = stops.find(s => s.location_id === l.id);
-      const photoUrl = showThumbnails && stop ? l.photos?.[0]?.url : undefined;
-      const markerBody = document.createElement('span');
-      markerBody.className = `pin ${photoUrl ? 'route-thumb-pin' : ''} ${selectedId === l.id ? 'selected' : ''} ${!stop ? 'library-pin' : ''}`;
-      if (photoUrl) {
-        const image = document.createElement('img');
-        image.src = photoUrl; image.alt = ''; image.loading = 'lazy'; image.referrerPolicy = 'no-referrer';
-        markerBody.appendChild(image);
-        const order = document.createElement('span');
-        order.className = 'pin-order'; order.textContent = String(stop?.stop_order || '');
-        markerBody.appendChild(order);
-      } else {
-        const order = document.createElement('span');
-        order.textContent = String(stop?.stop_order || '•');
-        markerBody.appendChild(order);
-      }
-      const icon = L.divIcon({ className: 'map-marker', html: markerBody, iconSize: photoUrl ? [44, 52] : [38, 48], iconAnchor: photoUrl ? [22, 46] : [19, 46] });
+      const icon = L.divIcon({ className: 'map-marker', html: `<span class="pin ${selectedId === l.id ? 'selected' : ''} ${!stop ? 'library-pin' : ''}"><span>${stop?.stop_order || '•'}</span></span>`, iconSize: [38, 48], iconAnchor: [19, 46] });
       const tooltip = document.createElement('span'); tooltip.textContent = l.name;
       L.marker([l.coordinates.lat, l.coordinates.lng], { icon, title: l.name, keyboard: true, bubblingMouseEvents: false }).bindTooltip(tooltip, { direction: 'right', offset: [18, -20] }).on('click', () => select.current(l.id)).addTo(group);
     });
@@ -154,26 +139,25 @@ export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft
       L.marker([draftPoint.lat, draftPoint.lng], { icon, keyboard: false, interactive: false }).addTo(group);
     }
     return () => { group.remove(); };
-  }, [locations, stops, selectedId, draftPoint, showThumbnails]);
+  }, [locations, stops, selectedId, draftPoint]);
   function fit() {
     const instance = map.current; if (!instance) return;
     const points = stopsRef.current.length ? stopsRef.current.map(s => s.location) : locationsRef.current.filter(l => l.status === 'active');
     const latlngs: [number, number][] = points.map(l => [l.coordinates.lat, l.coordinates.lng]);
     if (routeRef.current) latlngs.push(...routeRef.current.points);
     if (latlngs.length) instance.fitBounds(L.latLngBounds(latlngs), { paddingTopLeft: [40, 135], paddingBottomRight: [50, 140], maxZoom: points.length === 1 ? 17 : 16 });
-    else instance.setView(QUAI_NHON_CENTER, window.matchMedia('(max-width: 650px)').matches ? QUAI_NHON_MOBILE_ZOOM : QUAI_NHON_DESKTOP_ZOOM);
+    else instance.setView([13.776, 109.223], 12);
   }
   useEffect(() => { fit(); }, [fitSignal, key]);
   // A selection focuses closely without continually resetting the user's pan/zoom.
   const selected = locations.find(l => l.id === selectedId);
-  useEffect(() => { if (focusSelected && selected) map.current?.setView([selected.coordinates.lat, selected.coordinates.lng], Math.max(map.current.getZoom(), 17), { animate: false }); }, [focusSelected, selectedId, selected?.coordinates.lat, selected?.coordinates.lng]);
+  useEffect(() => { if (selected) map.current?.setView([selected.coordinates.lat, selected.coordinates.lng], Math.max(map.current.getZoom(), 17), { animate: false }); }, [selectedId, selected?.coordinates.lat, selected?.coordinates.lng]);
   return <>
     <div className={`leaflet-root ${placing ? 'placing-pin' : ''}`} ref={root} aria-label="Bản đồ tương tác: kéo để di chuyển, chụm hai ngón để zoom" />
     <div className="map-layers"><button className={layer === 'map' ? 'active' : ''} onClick={() => { mobileFallbackAttempted.current = false; setLayer('map'); setTileNotice(''); }}>Map</button><button className={layer === 'satellite' ? 'active' : ''} onClick={() => { mobileFallbackAttempted.current = true; setLayer('satellite'); setTileNotice(''); }}>Satellite</button></div>
-    <button className={`place-pin-button ${placing ? 'active' : ''}`} onClick={() => setPlacing(v => !v)} aria-pressed={placing}>{placing ? <X size={16} /> : <MapPin size={16} />}{placing ? 'Hủy đặt pin' : 'Thêm spot trên map'}</button>
-    {placing && <div className="placing-hint" role="status">Kéo / zoom để tìm vị trí, rồi nhấp hoặc chạm bản đồ để đặt pin.</div>}
+    <button className={`place-pin-button ${placing ? 'active' : ''}`} onClick={() => setPlacing(v => !v)} aria-label={placing ? 'Hủy đặt pin' : 'Thêm spot trên bản đồ'} title={placing ? 'Hủy đặt pin' : 'Thêm spot trên bản đồ'} aria-pressed={placing}>{placing ? <X size={20} /> : <MapPin size={20} />}</button>
     <div className="map-controls"><button aria-label="Xem toàn bộ lộ trình" title="Xem toàn bộ lộ trình" onClick={fit}><LocateFixed size={21} /></button><div><button aria-label="Phóng to" disabled={zoom >= 20} onClick={() => map.current?.zoomIn()}><Plus size={23} /></button><button aria-label="Thu nhỏ" disabled={zoom <= 3} onClick={() => map.current?.zoomOut()}><Minus size={23} /></button></div></div>
-    {(tileError || tileNotice) && <div className="map-error" role="status">{tileError ? 'Chưa tải được bản đồ. Kiểm tra kết nối mạng.' : tileNotice}{tileError && <button onClick={() => { mobileFallbackAttempted.current = false; setTileNotice(''); setRetry(n => n + 1); }}>Thử lại bản đồ</button>}<button aria-label="Đóng thông báo bản đồ" onClick={() => { setTileError(false); setTileNotice(''); }}><X size={14} /></button></div>}
+    {(tileError || tileNotice) && <div className="map-error" role="status">{tileError ? 'Chưa tải được bản đồ. Kiểm tra kết nối mạng.' : tileNotice}{tileError && <button onClick={() => setRetry(n => n + 1)}>Thử lại bản đồ</button>}<button aria-label="Đóng thông báo bản đồ" onClick={() => { setTileError(false); setTileNotice(''); }}><X size={14} /></button></div>}
     {stops.length >= 2 && <div className="route-summary" role="status">{activeRoute ? <><strong><Car size={16} />Ô tô · {(activeRoute.distance / 1000).toFixed(1)} km · ~{Math.max(1, Math.round(activeRoute.duration / 60))} phút đi</strong>{activeRoute.offRoad && <span>Một số pin cách đường ô tô trên 150 m; cần đi bộ đoạn cuối.</span>}</> : routingError ? <><span>{routingError}</span><button onClick={() => setRouteRetry(n => n + 1)}>Thử lại tuyến</button></> : <strong><LoaderCircle className="spin" size={16} />Đang tính tuyến ô tô…</strong>}<small>OSRM / FOSSGIS · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a> · <a href="https://www.openstreetmap.org/" target="_blank" rel="noreferrer">Sửa bản đồ</a></small></div>}
   </>;
 }
