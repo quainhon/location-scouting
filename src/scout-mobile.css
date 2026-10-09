@@ -47,3 +47,39 @@ dialog.scout-sheet{position:fixed;inset:auto 0 0;width:100%;max-width:650px;max-
 .scout-route-reorder-toggle{display:flex;align-items:center;gap:7px;min-height:44px;padding:8px 12px;background:#294f3c!important;color:#fffdf6!important;border:1px solid #294f3c!important;box-shadow:0 3px 14px #183b2430;font-size:12px!important}
 .scout-route-reorder-toggle b{display:flex;align-items:center;justify-content:center;min-width:22px;height:22px;margin-left:2px;padding:0 6px;border-radius:11px;background:#fffdf6;color:#294f3c;font-size:11px}
 
+
+/* Compact mobile scouting: keep tools reachable while letting the map lead. */
+.scout-map-top { left:12px;right:auto;top:12px; }
+.scout-mobile .scout-map-top>button {
+  display:flex;align-items:center;justify-content:center;
+  width:46px;height:46px;min-height:46px;padding:0;border-radius:14px;
+}
+.scout-map .map-layers { top:12px;right:12px; }
+.scout-map .place-pin-button { top:66px;right:12px; }
+.scout-map .placing-hint { top:118px;left:12px;right:12px; }
+.scout-map .map-error { top:163px; }
+.scout-map .map-controls { bottom:145px;right:12px; }
+.scout-map-bottom { left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));gap:7px; }
+.scout-session-start { display:flex;align-items:center;gap:6px;min-height:34px!important;padding:6px 11px!important;border-radius:18px!important;align-self:flex-start; }
+.scout-session { width:auto;max-width:100%;align-self:flex-start;padding:6px 10px;display:flex;gap:8px;align-items:center;border-radius:18px; }
+.scout-session>span { gap:7px;font-size:12px; }
+.scout-session b { margin-left:0; }
+.scout-session small { display:inline;margin:0;font-size:11px; }
+.scout-session>button { position:static;min-height:30px;padding:3px 8px;font-size:11px; }
+.scout-map .route-summary { bottom:140px; }
+.scout-map .route-summary small { display:none; }
+.scout-list { padding:16px 15px 24px; }
+.scout-list-title { margin-bottom:14px; }
+.scout-list-title p,.scout-sheet-heading p { display:none; }
+.scout-list h1 { font-size:24px; }
+.scout-list-title>button { width:44px;height:44px; }
+.scout-filters { padding:10px 0 4px; }
+.scout-route-select { margin:0 0 12px; }
+.scout-route-heading { margin:14px 0 10px; }
+.scout-route-heading h2 { margin:0;font-size:16px; }
+.scout-card { padding:10px 0!important; }
+.scout-card .scout-thumb { width:56px;height:60px; }
+.scout-card small { margin:2px 0; }
+.scout-empty { padding:30px 12px; }
+.scout-sheet-heading { margin-bottom:12px; }
+.scout-handle { margin-bottom:11px; }
