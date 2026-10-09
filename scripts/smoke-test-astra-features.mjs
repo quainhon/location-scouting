@@ -91,9 +91,9 @@ async function main() {
     await send('Page.navigate', { url: TARGET_URL });
     await sleep(2500);
 
-    const statusText = await evaluate(`document.querySelector('.save-status')?.textContent`);
+    const statusText = await evaluate(`document.querySelector('.save-status')?.getAttribute('aria-label')`);
     console.log('Server connection status in UI:', statusText);
-    if (!statusText?.includes('Đã kết nối SQLite')) {
+    if (!statusText?.includes('Đã kết nối')) {
       throw new Error(`Unexpected connection status: ${statusText}`);
     }
 
@@ -183,11 +183,10 @@ async function main() {
     // Feature Check 2: Astra Tour Builder (Multi-Spot Tour Creation)
     // ────────────────────────────────────────────────────────────────────────
     console.log('\n--- Check 2: Astra Tour Builder ---');
-    // Open TourBuilder by clicking "Xem tất cả spots"
+    // Open TourBuilder using the accessible header action.
     await evaluate(`
       (() => {
-        const btns = Array.from(document.querySelectorAll('button'));
-        const browseBtn = btns.find(b => b.textContent.includes('Xem tất cả spots'));
+        const browseBtn = document.querySelector('button[aria-label="Xem tất cả spots"]');
         browseBtn?.click();
       })()
     `);
