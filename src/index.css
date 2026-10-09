@@ -40,3 +40,29 @@
 @media(max-width:650px){.app-header{height:118px;padding:12px;flex-wrap:wrap;gap:8px}.brand{min-width:0;flex:1}.brand strong{font-size:16px}.brand-mark svg{width:29px}.brand{gap:8px}.header-actions{gap:6px}.header-actions button{font-size:11px;padding:7px;min-height:34px}.header-actions .avatar{width:34px;height:34px}.tour-switch{order:3;flex-basis:100%;max-width:none}.tour-switch select{padding:8px 10px;font-size:12px}.workspace{grid-template-columns:1fr;grid-template-rows:minmax(280px,54%) 1fr;overflow:auto}.map-area{grid-row:1}.sidebar{grid-row:2;border-right:0;overflow:auto}.sidebar-heading{padding:15px 16px 10px}.sidebar-heading h2{font-size:16px}.stops-scroll{overflow:visible;padding:0 14px 15px}.library-nav{padding:15px;display:flex;align-items:center;gap:12px}.library-nav h2{display:none}.library-nav button{font-size:12px}.nav-icon{width:30px;height:30px}.count{font-size:11px;padding:4px 8px}.empty{padding:20px 10px 10px}.empty-icon{display:none}.empty p{max-width:300px}.stop-card{min-height:73px}.stop-photo{width:48px;height:48px}.detail-panel{top:118px;width:100%;bottom:0}.map-caption{bottom:24px}.map-controls{bottom:38px}.map-search{width:calc(100% - 165px);left:12px}.map-layers{right:12px}.map-layers button{padding:6px 9px}.hero-photo{height:230px}.detail-actions button{font-size:11px;padding:8px}.form-grid,.library-grid{grid-template-columns:1fr}.full{grid-column:auto}.detail-kicker{display:none}.library-tools{flex-wrap:wrap}.input-icon{flex-basis:100%}.error-banner{font-size:10px;padding:6px;flex-wrap:wrap}.form-actions{position:sticky;bottom:0;background:white;padding-bottom:5px}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
+
+/* Map-first compact workspace: empty details are contextual, not a third permanent column. */
+@media (min-width:651px) {
+  .workspace.spot-closed { grid-template-columns:minmax(250px,23%) minmax(0,1fr); }
+  .workspace.spot-closed .detail-panel { display:none; }
+  .sidebar-heading { padding:18px 18px 10px; }
+  .sidebar-heading h2 { font-size:17px; }
+  .sidebar .stops-scroll .empty { padding:26px 8px 8px; }
+  .sidebar .stops-scroll .empty-icon, .sidebar .stops-scroll .empty p { display:none; }
+  .stop-card { min-height:70px; padding:6px; }
+  .stop-photo { width:44px;height:44px; }
+  .stop-text { gap:3px; }
+  .library-nav { padding:10px 16px 14px; }
+  .library-nav button { min-height:42px;padding:5px 0;gap:10px;font-size:14px; }
+  .library-nav .nav-icon { width:30px;height:30px; }
+  .library-nav .nav-icon svg { width:18px;height:18px; }
+  .library-nav .count { padding:4px 9px; }
+  .app-header .tour-switch { padding-top:0; }
+  .app-header .tour-switch select { padding:9px 10px; }
+  .save-status { margin-left:auto;min-width:10px; }
+  .save-status .connection-dot.pending { background:#b5aa76; }
+  .map-controls { bottom:20px; }
+}
+@media (min-width:651px) and (max-width:1000px) {
+  .workspace.spot-closed { grid-template-columns:265px minmax(0,1fr); }
+}
