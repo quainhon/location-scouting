@@ -1,7 +1,7 @@
 /* Mobile navigation and road-route presentation. Desktop workspace columns are unchanged. */
 .mobile-only,.mobile-tour-home,.mobile-map-nav,.mobile-stops-toggle,.mobile-spot-peek{display:none}
 .leaflet-root{touch-action:none;overscroll-behavior:contain}
-.leaflet-root.placing-pin{cursor:crosshair}
+.leaflet-root[data-placing="true"]{cursor:crosshair}
 .place-pin-button{position:absolute;top:70px;right:17px;z-index:4;background:#fffdf4;font-size:12px;box-shadow:0 2px 12px #263d2b20}
 .place-pin-button.active{background:#2d432b;color:#fff9e9}
 .placing-hint{position:absolute;top:119px;left:16px;right:16px;z-index:4;padding:9px 12px;border-radius:8px;background:#fff8de;color:#52623e;font-size:12px;pointer-events:none}
