@@ -24,7 +24,8 @@ Mở http://127.0.0.1:3001. Chỉ bind localhost; chưa phải dịch vụ nhi�
 
 ## Tính năng
 
-- Tạo/chọn tour, tạo/sửa địa điểm; đổi thứ tự bằng nút lên/xuống.
+- Tạo/chọn/xóa tour (có xác nhận); xóa tour chỉ xóa lộ trình và thứ tự các điểm dừng, spot vẫn nằm trong thư viện.
+- Bật/tắt đường tuyến; khi tắt, các số thứ tự trên pin vẫn được giữ.
 - Thư viện độc lập, thêm địa điểm vào nhiều tour, Remove Pin chỉ bỏ liên kết.
 - Archive/Restore bảo toàn thông tin và các tour đã liên kết. Xóa vĩnh viễn có xác nhận, gỡ spot khỏi các tour và xóa metadata liên quan.
 - Trạng thái khảo sát, tọa độ, giờ phù hợp, đường vào, mô tả, highlights, ghi chú.
@@ -44,7 +45,7 @@ Database mặc định ở `data/scout.sqlite`, không được commit. Có th�
 - `GET /api/workspace` → `{revision, locations, tours}`.
 - `PUT /api/workspace` nhận cùng shape và lưu bằng transaction; trả snapshot đã lưu.
 - `revision` chống ghi đè giữa các cửa sổ: HTTP 409 nếu stale; giao diện báo lỗi và cho tải lại.
-- HTTP 400 cho dữ liệu sai; 413 khi payload vượt 5 MB. Xóa vĩnh viễn location/tour bị từ chối.
+- HTTP 400 cho dữ liệu sai; 413 khi payload vượt 5 MB. Xóa route qua giao diện xóa bản ghi tour và các điểm dừng của route trong cùng transaction; spot vẫn giữ nguyên.
 - `coordinates.lat/lng` ánh xạ thành `latitude/longitude`.
 - `camera_angles`, `tags`, `drive_reference`, `assigned_crew` là JSON trong SQL.
 - `photos`, `checklist`, `history` là các bảng con; `Tour.stops` đọc từ `tour_stops` theo `stop_order`.
@@ -52,7 +53,7 @@ Database mặc định ở `data/scout.sqlite`, không được commit. Có th�
 
 ## Phạm vi hoạt động
 
-Ảnh, bản đồ và tính tuyến cần Internet. Tuyến ô tô lấy từ OSRM/FOSSGIS theo đúng thứ tự điểm, có quãng đường và thời gian di chuyển ước tính (không tính thời gian dừng). Khi không có tuyến, giao diện báo lỗi; không thay bằng đường thẳng giả. Tọa độ các điểm được gửi đến dịch vụ routing khi mở tour có ít nhất hai điểm. Google Drive hoạt động bằng liên kết thư mục, chưa tích hợp OAuth. Chưa có đăng nhập, chia sẻ đa người dùng hoặc đồng bộ QNCC; file schema dành cho bước tích hợp này.
+Ảnh, bản đồ và tính tuyến cần Internet. Tuyến ô tô lấy từ OSRM/FOSSGIS theo đúng thứ tự điểm, có quãng đường và thời gian di chuyển ước tính (không tính thời gian dừng). Khi không có tuyến, giao diện báo lỗi; không thay bằng đường thẳng giả. Tọa độ các điểm chỉ được gửi đến dịch vụ routing khi route có ít nhất hai điểm và đường tuyến đang bật. Google Drive hoạt động bằng liên kết thư mục, chưa tích hợp OAuth. Chưa có đăng nhập, chia sẻ đa người dùng hoặc đồng bộ QNCC; file schema dành cho bước tích hợp này.
 
 ## Kiểm thử
 
@@ -70,7 +71,7 @@ Nguồn bản đồ: [Leaflet](https://leafletjs.com/reference), [Esri imagery a
 
 - Điện thoại mở thẳng bản đồ với **+ Scout**, **Đã scout** và **Thư viện**. Lưu nhanh không yêu cầu tên hoặc chọn tour. Xem [Mobile Scout UI](docs/MOBILE_SCOUT_UI.md) và [Photo Upload](docs/PHOTO_UPLOAD.md).
 - **Xem tất cả spots** cho chọn nhiều địa điểm đang hoạt động, đổi thứ tự, đặt tên rồi tạo một tour mới trong một lần lưu. Địa điểm và tour cũ được giữ nguyên.
-- Giao diện mobile map-first có tab **Lộ trình** để chọn tour đã lưu, tạo tour từ nhiều spots, đổi thứ tự điểm dừng đã lưu, và mở map xem tuyến lái xe được tính lại theo thứ tự.
+- Giao diện mobile map-first có tab **Lộ trình** để chọn/xóa tour đã lưu, tạo tour từ nhiều spots, đổi thứ tự điểm dừng đã lưu, và mở map xem tuyến lái xe được tính lại theo thứ tự. Trên map có nút ẩn/hiện đường; số thứ tự pin vẫn hiển thị khi đường bị ẩn.
 - Trong tour: map chiếm không gian chính, danh sách điểm có thể mở/thu gọn. Chọn pin zoom tới mức 17 và hiện thẻ nhỏ; **Chi tiết** mở panel ghi chú/ảnh/checklist hiện có.
 - Kéo một ngón, zoom hai ngón hoặc nút +/−. **Thêm spot trên map** bật chế độ đặt pin; chạm bình thường không mở form. **Xem toàn bộ lộ trình** bao gồm cả geometry của đường đi đã tải.
 - Bản đồ đường phố là mặc định. Satellite yêu cầu `blankTile=false`, dùng mức ảnh gốc tối đa 17 rồi phóng ảnh khi zoom gần hơn; tự chuyển về Map khi nhà cung cấp thiếu ảnh. Mức zoom giao diện tối đa 20.
