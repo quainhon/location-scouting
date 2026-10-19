@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Archive, ArrowDown, ArrowUp, Check, ChevronRight, Compass, ExternalLink, LocateFixed, Map as MapIcon, MapPin, Plus, Route, Search, Trash2, X } from 'lucide-react';
+import { Archive, ArrowDown, ArrowUp, Check, ChevronRight, ExternalLink, LocateFixed, Map as MapIcon, MapPin, Plus, Route, Search, Trash2, X } from 'lucide-react';
 import type { GeoPoint, ScoutLocation, Tour } from '../types/scout';
 import { hydrateTourStops, moveStop, removeStopFromTour } from '../utils/invariants';
 import { ScoutMap } from './ScoutMap';
@@ -32,7 +32,7 @@ export function MobileScout({ locations, tours, activeTourId, ready, busy, error
   const [photoError, setPhotoError] = useState('');
   const submitLock = useRef(false);
   const working = busy || mediaBusy || uploading;
-  const [page, setPage] = useState<'map' | 'route' | 'scouts' | 'library'>('map');
+  const [page, setPage] = useState<'map' | 'route' | 'library'>('map');
   const [builderOpen, setBuilderOpen] = useState(false);
   const [routeMapOpen, setRouteMapOpen] = useState(false);
   const [routeSelectedId, setRouteSelectedId] = useState('');
@@ -64,6 +64,7 @@ export function MobileScout({ locations, tours, activeTourId, ready, busy, error
   const visible = locations.filter(l => {
     if (filter === 'archived' ? l.status !== 'archived' : l.status !== 'active') return false;
     if (filter === 'today' && !isToday(l.created_at)) return false;
+    if (filter === 'scouted' && !['scouted', 'approved'].includes(l.scouting_status || '')) return false;
     if (filter === 'review' && ['scouted', 'approved'].includes(l.scouting_status || '')) return false;
     return `${l.name} ${l.region} ${l.scouting_notes}`.toLocaleLowerCase('vi').includes(query.toLocaleLowerCase('vi'));
   }).sort((a, b) => b.created_at.localeCompare(a.created_at));
@@ -125,8 +126,8 @@ export function MobileScout({ locations, tours, activeTourId, ready, busy, error
     } catch (e) { setPhotoError((e as Error).message); }
     finally { submitLock.current = false; setUploading(false); setProgress(''); }
   }
-  function navigate(next: typeof page) { setRouteMapOpen(false); setPage(next); setFilter(next === 'scouts' ? 'today' : 'all'); setQuery(''); }
-  const tabs = [['map', MapIcon, 'Bản đồ'], ['route', Route, 'Lộ trình'], ['scouts', MapPin, 'Đã scout'], ['library', Archive, 'Thư viện']] as const;
+  function navigate(next: typeof page) { setRouteMapOpen(false); setPage(next); setFilter('all'); setQuery(''); }
+  const tabs = [['map', MapIcon, 'Bản đồ'], ['route', Route, 'Lộ trình'], ['library', Archive, 'Thư viện']] as const;
   return <div className="scout-mobile">
     {routeMapOpen && currentTour && currentStops.length >= 2 && <section className="scout-route-map-fullscreen" aria-label={`Lộ trình ${currentTour.title}`}>
       <ScoutMap locations={currentStops.map(stop => stop.location)} stops={currentStops} selectedId={routeSelectedId} onSelect={id => { setRouteSelectedId(id); setRouteReorderOpen(false); }} onCreateDraft={() => {}} draftPoint={null} fitSignal={fit} showThumbnails focusSelected={false} compactControls />
@@ -139,15 +140,9 @@ export function MobileScout({ locations, tours, activeTourId, ready, busy, error
         <button className="scout-route-reorder-toggle" aria-expanded={routeReorderOpen} onClick={() => setRouteReorderOpen(open => !open)} disabled={working}><Route size={17} />Đổi vị trí <b>{routeSelectedStop.stop_order}</b></button>
       </div>}
     </section>}
-    <header className="scout-header" aria-label="Quài Nhơn Location Scout"><span className="scout-brand" role="img" aria-label="Quài Nhơn"><Compass size={25} aria-hidden="true" /></span></header>
     <main className="scout-content">
       {page === 'map' ? <section className="scout-map" aria-label="Bản đồ khảo sát">
         <ScoutMap locations={locations} stops={currentStops} selectedId="" onSelect={setSelectedId} onCreateDraft={p => { if (ready && !busy) startCapture(p); }} draftPoint={point} fitSignal={fit} pickSignal={pickSignal} compactControls />
-        <div className="scout-map-top"><button onClick={() => navigate('library')} aria-label="Tìm địa điểm" title="Tìm địa điểm"><Search size={20} /></button></div>
-        <div className="scout-map-bottom">
-          <button className="scout-primary" disabled={!ready || busy} onClick={() => startCapture()}><Plus size={25} />SCOUT</button>
-          
-        </div>
       </section> : page === 'route' ? <section className="scout-list scout-route-list">
         <div className="scout-list-title"><div><p>ĐI THEO THỨ TỰ BẠN CHỌN</p><h1>Lộ trình</h1></div><button aria-label="Tạo lộ trình mới" disabled={!ready || working || !active.length} onClick={() => setBuilderOpen(true)}><Plus /></button></div>
         <label className="scout-route-select"><select aria-label="Chọn lộ trình trên điện thoại" value={currentTour?.id || ''} disabled={!availableTours.length} onChange={e => onChooseTour(e.target.value)}><option value="" disabled>{availableTours.length ? 'Chọn một lộ trình' : 'Chưa có lộ trình đã lưu'}</option>{availableTours.map(t => <option key={t.id} value={t.id}>{t.title} · {t.stops.length} điểm</option>)}</select></label>
@@ -156,9 +151,9 @@ export function MobileScout({ locations, tours, activeTourId, ready, busy, error
           {currentStops.length ? <ol className="scout-route-stops">{currentStops.map((stop, index) => <li key={stop.id}><span className="number">{index + 1}</span><span className="scout-route-stop-copy"><strong>{stop.location.name}</strong><small>{stop.location.region || 'Chưa ghi khu vực'}</small></span><button aria-label={`Đưa ${stop.location.name} lên trước`} disabled={working || index === 0} onClick={() => void onUpdateTour(moveStop(currentTour, stop.id, 'up'))}><ArrowUp size={18} /></button><button aria-label={`Đưa ${stop.location.name} xuống sau`} disabled={working || index === currentStops.length - 1} onClick={() => void onUpdateTour(moveStop(currentTour, stop.id, 'down'))}><ArrowDown size={18} /></button><button className='route-remove' aria-label={'Xóa ' + stop.location.name + ' khỏi lộ trình'} title='Xóa khỏi lộ trình' disabled={working} onClick={() => { if (window.confirm('Xóa ' + stop.location.name + ' khỏi lộ trình này? Spot vẫn được giữ trong thư viện.')) void onUpdateTour(removeStopFromTour(currentTour, stop.id), stop.location_id, 'Xóa khỏi lộ trình của tour').then(ok => ok && setNotice('Đã xóa spot khỏi lộ trình.')); }}><Trash2 size={17} /></button></li>)}</ol> : <div className="scout-empty"><Route size={34} /><h2>Tour chưa có spot</h2><button onClick={() => setBuilderOpen(true)} disabled={!ready || working || !active.length}>Chọn spots</button></div>}
         </> : <div className="scout-empty"><Route size={34} /><h2>Chưa có lộ trình</h2><button onClick={() => setBuilderOpen(true)} disabled={!ready || working || !active.length}>Chọn spots</button></div>}
       </section> : <section className="scout-list">
-        <div className="scout-list-title"><div><p>NHỮNG ĐIỂM BẠN TÌM THẤY</p><h1>{page === 'scouts' ? 'Đã scout' : 'Thư viện'}</h1></div><button aria-label="Thêm địa điểm" disabled={!ready || busy} onClick={() => startCapture()}><Plus /></button></div>
+        <div className="scout-list-title"><div><p>NHỮNG ĐIỂM BẠN TÌM THẤY</p><h1>Thư viện</h1></div><button aria-label="Thêm địa điểm" disabled={!ready || busy} onClick={() => startCapture()}><Plus /></button></div>
         <label className="scout-search"><Search size={19} /><input aria-label="Tìm địa điểm" placeholder="Tên, khu vực hoặc ghi chú…" value={query} onChange={e => setQuery(e.target.value)} /></label>
-        <div className="scout-filters">{[['all', 'Tất cả'], ['today', 'Hôm nay'], ['review', 'Cần xem lại'], ...(page === 'library' ? [['archived', 'Lưu trữ']] : [])].map(([value, label]) => <button key={value} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}</div>
+        <div className="scout-filters">{[['all', 'Tất cả'], ['scouted', 'Đã scout'], ['today', 'Hôm nay'], ['review', 'Cần xem lại'], ['archived', 'Lưu trữ']].map(([value, label]) => <button key={value} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}</div>
         
         {!visible.length && <div className="scout-empty"><MapPin size={36} /><h2>{query ? 'Không tìm thấy' : 'Chưa có địa điểm'}</h2><button onClick={() => navigate('map')}>Về bản đồ</button></div>}
         {visible.map(l => <button className="scout-card" key={l.id} onClick={() => setSelectedId(l.id)}><Thumbnail location={l} /><span><strong>{l.name}</strong><small>{new Date(l.created_at).toLocaleString('vi-VN', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })} · {l.region || 'Chưa ghi khu vực'}</small><em>{impressions.find(i => l.tags.includes(`scout:rating:${i.value}`))?.icon} {l.status === 'archived' ? 'Đã lưu trữ' : scoutLabel(l)}</em></span><ChevronRight size={18} /></button>)}
