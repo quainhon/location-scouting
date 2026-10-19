@@ -1,11 +1,8 @@
-.scout-hide-header{display:none!important}
 .scout-mobile{--ink:#263f35;--muted:#64756b;--paper:#fffdf6;--green:#294f3c;display:flex;flex-direction:column;flex:1;min-height:0;background:var(--paper);color:var(--ink);font-family:system-ui,sans-serif;font-size:14px}
 .scout-mobile button,.scout-sheet button{font-family:inherit;min-height:44px;border-radius:12px;font-size:14px;cursor:pointer}
 .scout-mobile button:focus-visible,.scout-sheet :focus-visible{outline:3px solid #b47622;outline-offset:3px}
-.scout-header{padding:12px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0;background:#fffdf6;border-bottom:1px solid #e1e4d9}
-.scout-brand{display:flex;gap:9px;align-items:center}.scout-brand>svg{display:none}.scout-brand::before{content:'';display:block;width:38px;height:38px;flex:0 0 38px;border-radius:11px;background:url('/branding/location-scout-logo.svg') center/cover no-repeat;box-shadow:0 2px 10px #183b2424}.scout-brand>span{font-size:9px;letter-spacing:2px}.scout-brand strong{display:block;letter-spacing:-.5px;font-size:20px;font-weight:650}.scout-connection{font-size:11px;color:#526b59;white-space:nowrap}
-.scout-content{position:relative;flex:1;min-height:0;overflow:hidden}.scout-map{position:absolute;inset:0;background:#e9eddf}.scout-map .leaflet-root{position:absolute;inset:0}.scout-map-top{position:absolute;z-index:5;left:16px;right:16px;top:16px;pointer-events:none}.scout-map-top>button{width:100%;justify-content:flex-start;background:#fffdf6;box-shadow:0 3px 18px #1e38221a;border:1px solid #dde2d5;padding:12px 16px;color:#657167;pointer-events:auto}.scout-chips{display:flex;gap:8px;margin-top:10px;pointer-events:auto}.scout-chips button{min-height:36px;padding:7px 12px;border-radius:24px;background:#fffdf6;font-size:12px}.scout-chips b{margin-left:5px}
-.scout-map .map-layers{top:124px;right:16px}.scout-map .place-pin-button{top:171px;right:16px;min-height:40px}.scout-map .placing-hint{top:221px;left:16px;right:16px;pointer-events:none}.scout-map .map-controls{bottom:190px;right:16px}.scout-map .map-error{position:absolute;top:270px;z-index:8}.scout-map .map-controls button{width:44px;height:44px;background:#fffdf6}.scout-map .leaflet-control-attribution{max-width:90%;font-size:9px!important}.scout-map-bottom{position:absolute;bottom:24px;left:18px;right:18px;z-index:7;display:flex;align-items:center;flex-direction:column;gap:10px;pointer-events:none}.scout-map-bottom>*{pointer-events:auto}
+.scout-content{position:relative;flex:1;min-height:0;overflow:hidden}.scout-map{position:absolute;inset:0;background:#e9eddf}.scout-map .leaflet-root{position:absolute;inset:0}.scout-chips{display:flex;gap:8px;margin-top:10px;pointer-events:auto}.scout-chips button{min-height:36px;padding:7px 12px;border-radius:24px;background:#fffdf6;font-size:12px}.scout-chips b{margin-left:5px}
+.scout-map .map-layers{top:124px;right:16px}.scout-map .place-pin-button{top:171px;right:16px;min-height:40px}.scout-map .placing-hint{top:221px;left:16px;right:16px;pointer-events:none}.scout-map .map-controls{bottom:190px;right:16px}.scout-map .map-error{position:absolute;top:270px;z-index:8}.scout-map .map-controls button{width:44px;height:44px;background:#fffdf6}.scout-map .leaflet-control-attribution{max-width:90%;font-size:9px!important}
 .scout-mobile .scout-primary,.scout-sheet .scout-primary{display:flex;width:100%;min-height:56px;align-items:center;justify-content:center;gap:10px;background:#294f3c;color:#fffdf6;border:1px solid #294f3c;border-radius:17px;font-size:17px;font-weight:650;box-shadow:0 5px 15px #183b2422}.scout-mobile button:disabled,.scout-sheet button:disabled{opacity:.5;cursor:not-allowed}.scout-caption{font-size:11px;background:#fffdf6e8;padding:3px 9px;border-radius:9px;color:#52634e}.scout-session-start{background:#fffdf6f5;padding:8px 13px;font-size:12px!important;min-height:36px!important;box-shadow:0 2px 10px #183b2414}.scout-session{position:relative;width:100%;padding:12px 80px 12px 14px;background:#fffdf6;border-radius:14px;box-shadow:0 3px 15px #183b2422}.scout-session>span{display:flex;align-items:center;gap:6px;font-size:13px}.scout-session i{width:7px;height:7px;background:#52845b;border-radius:50%}.scout-session b{margin-left:auto}.scout-session small{display:block;margin-top:5px;font-size:10px;color:#64756b}.scout-session>button{position:absolute;right:7px;top:8px;border:0;background:transparent;font-size:12px}
 .scout-nav{display:flex;flex-shrink:0;padding:7px 12px max(8px,env(safe-area-inset-bottom));border-top:1px solid #dde2d5;background:#fffdf6}.scout-nav button{flex:1;display:flex;flex-direction:column;gap:4px;min-height:50px;border:0;background:transparent;color:#737e71;font-size:11px}.scout-nav button[aria-current]{background:#eaf0e4;color:#294f3c;font-weight:650}
 .scout-list{height:100%;overflow:auto;padding:25px 18px}.scout-list-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}.scout-list-title p,.scout-sheet-heading p{font-size:9px;letter-spacing:1.6px;color:#687c67;margin:0 0 6px}.scout-list h1{font-size:30px;letter-spacing:-1px;margin:0}.scout-list-title>button{background:#294f3c;color:white;width:46px;height:46px}.scout-search{display:flex;align-items:center;padding:0 12px;border:1px solid #dce2d4;border-radius:12px;background:white;gap:8px}.scout-search input{min-width:0;width:100%;border:0;background:transparent;font-size:16px;padding:12px 0}.scout-filters{display:flex;gap:7px;overflow:auto;padding:14px 0 5px}.scout-filters button{white-space:nowrap;min-height:36px;padding:6px 13px;border-radius:24px;font-size:12px;background:transparent}.scout-filters button[aria-pressed=true],.scout-detail-status button[aria-pressed=true]{background:#e7eddf;border-color:#7c9670;color:#294f3c}.scout-count{color:#64756b;font-size:12px;margin:15px 0 8px}.scout-card{display:flex;width:100%;gap:12px;text-align:left;border:0!important;border-bottom:1px solid #e2e5da!important;border-radius:0!important;padding:14px 0!important;background:transparent}.scout-thumb{width:68px;height:76px;flex-shrink:0;object-fit:cover;display:flex;align-items:center;justify-content:center;background:#e9eddf;color:#7d8b6e;border-radius:12px}.scout-card>span:not(.scout-thumb){flex:1;min-width:0}.scout-card strong{display:block;font-size:15px;overflow-wrap:anywhere}.scout-card small{display:block;font-size:11px;color:#64756b;line-height:1.5;margin:5px 0}.scout-card em{font-size:11px;font-style:normal;background:#ecefe1;padding:3px 6px;border-radius:5px}.scout-card>svg{flex-shrink:0}.scout-empty{text-align:center;padding:50px 12px;color:#697b60}.scout-empty>svg{margin-bottom:15px}.scout-empty h2{font-size:19px}.scout-empty p{line-height:1.7;margin:12px 0 20px}.scout-empty button{margin:auto}
@@ -49,17 +46,11 @@ dialog.scout-sheet{position:fixed;inset:auto 0 0;width:100%;max-width:650px;max-
 
 
 /* Compact mobile scouting: keep tools reachable while letting the map lead. */
-.scout-map-top { left:12px;right:auto;top:12px; }
-.scout-mobile .scout-map-top>button {
-  display:flex;align-items:center;justify-content:center;
-  width:46px;height:46px;min-height:46px;padding:0;border-radius:14px;
-}
 .scout-map .map-layers { top:12px;right:12px; }
 .scout-map .place-pin-button { top:66px;right:12px; }
 .scout-map .placing-hint { top:118px;left:12px;right:12px; }
 .scout-map .map-error { top:163px; }
 .scout-map .map-controls { bottom:145px;right:12px; }
-.scout-map-bottom { left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));gap:7px; }
 .scout-session-start { display:flex;align-items:center;gap:6px;min-height:34px!important;padding:6px 11px!important;border-radius:18px!important;align-self:flex-start; }
 .scout-session { width:auto;max-width:100%;align-self:flex-start;padding:6px 10px;display:flex;gap:8px;align-items:center;border-radius:18px; }
 .scout-session>span { gap:7px;font-size:12px; }
@@ -85,18 +76,7 @@ dialog.scout-sheet{position:fixed;inset:auto 0 0;width:100%;max-width:650px;max-
 .scout-handle { margin-bottom:11px; }
 
 
-/* Minimal mobile map: one visible word (SCOUT); all supporting controls are icons. */
-.scout-mobile .scout-header {
-  min-height:56px;
-  padding:7px 14px;
-  justify-content:flex-start;
-}
-.scout-mobile .scout-brand { min-height:42px; }
-.scout-mobile .scout-brand::before {
-  width:42px;
-  height:42px;
-  flex-basis:42px;
-}
+/* Compact mobile map controls keep the map as the focus. */
 .scout-mobile .scout-map .map-layers {
   top:12px;
   right:12px;
@@ -137,13 +117,7 @@ dialog.scout-sheet{position:fixed;inset:auto 0 0;width:100%;max-width:650px;max-
 }
 /* Route details remain accessible in the Route tab; do not clutter the map canvas. */
 .scout-mobile .scout-map .route-summary { display:none !important; }
-.scout-mobile .scout-map .map-controls { bottom:116px; }
-.scout-mobile .scout-map-bottom {
-  left:12px;
-  right:12px;
-  bottom:max(12px,env(safe-area-inset-bottom));
-  gap:0;
-}
+.scout-mobile .scout-map .map-controls { bottom:14px; right:12px; }
 .scout-mobile .scout-nav {
   padding:6px 12px max(8px,env(safe-area-inset-bottom));
 }
