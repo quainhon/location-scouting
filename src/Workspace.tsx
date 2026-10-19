@@ -132,6 +132,24 @@ export function Workspace() {
     if (!data) return;
     return save({ ...data, tours: data.tours.map(t => t.id === next.id ? next : t), locations: data.locations.map(l => l.id === locationId && action ? stamp(l, action) : l) });
   }
+  async function deleteTour(target: Tour): Promise<boolean> {
+    if (!data || busy) return false;
+    const confirmed = window.confirm(`Xóa lộ trình "${target.title}" và ${target.stops.length} điểm dừng? Các spot vẫn được giữ trong thư viện. Thao tác này không thể hoàn tác.`);
+    if (!confirmed) return false;
+    const remainingTours = data.tours.filter(item => item.id !== target.id);
+    const saved = await save({ ...data, tours: remainingTours });
+    if (saved) {
+      setActiveId(remainingTours[0]?.id || '');
+      setSelectedId('');
+      setDesktopRouteOpen(false);
+      setMobileHome(false);
+      setMobileStops(false);
+      setMobileDetails(false);
+      setFitSignal(n => n + 1);
+      setMessage(`Đã xóa lộ trình "${target.title}". Các spot vẫn được giữ trong thư viện.`);
+    }
+    return saved;
+  }
   async function deleteLocation(location: ScoutLocation) {
     if (!data || busy) return false;
     const linkedTours = data.tours.filter(t => t.stops.some(s => s.location_id === location.id));
@@ -187,12 +205,12 @@ export function Workspace() {
 
   return <div className={`app ${isMobile && mobileHome ? 'mobile-home-active' : ''} ${mobileStops ? 'mobile-stops-open' : ''} ${mobileDetails ? 'mobile-details-open' : ''}`}>
     <header className={`app-header ${isMobile ? 'scout-hide-header' : ''}`}><a className="brand" href="/" aria-label="Quài Nhơn Location Scout"><div className="brand-mark"><Compass size={35} strokeWidth={2.1} /></div><span>Quài Nhơn<strong>Location Scout</strong></span></a>
-      <div className="tour-switch"><select id="desktop-tour-choice" aria-label="Chọn tour" value={tour?.id || ''} onChange={e => chooseTour(e.target.value)}><option value="" disabled>Chọn lộ trình của bạn</option>{data?.tours.map(t => <option key={t.id} value={t.id}>{t.title} · {t.stops.length} điểm</option>)}</select><button className="icon-button" title="Chọn spots để tạo tour" aria-label="Chọn spots để tạo tour" onClick={browseSpots} disabled={!data || busy}><Plus size={18} /></button></div>
+      <div className="tour-switch"><select id="desktop-tour-choice" aria-label="Chọn tour" value={tour?.id || ''} onChange={e => chooseTour(e.target.value)}><option value="" disabled>Chọn lộ trình của bạn</option>{data?.tours.map(t => <option key={t.id} value={t.id}>{t.title} · {t.stops.length} điểm</option>)}</select><button className="icon-button" title="Chọn spots để tạo tour" aria-label="Chọn spots để tạo tour" onClick={browseSpots} disabled={!data || busy}><Plus size={18} /></button>{tour && <button className="icon-button delete-tour-button" title={`Xóa lộ trình: ${tour.title}`} aria-label={`Xóa lộ trình: ${tour.title}`} onClick={() => void deleteTour(tour)} disabled={busy}><Trash2 size={16} /></button>}</div>
       <span className="save-status" role="status" aria-label={busy ? 'Đang lưu' : data ? 'Đã kết nối' : 'Đang kết nối'} title={busy ? 'Đang lưu' : data ? 'Đã kết nối' : 'Đang kết nối'}>{busy ? <LoaderCircle className="spin" size={14} /> : <span className={`connection-dot ${data ? '' : 'pending'}`} />}</span>
       <div className="header-actions">{tour && stops.length >= 2 && <button aria-label="Xem route toàn màn hình" onClick={() => setDesktopRouteOpen(true)}><Route size={19} /><span>Route</span></button>}<button aria-label="Xem tất cả spots" onClick={browseSpots}><MapIcon size={19} /><span>Thư viện</span></button><button className="primary" onClick={() => openNewLocation()} disabled={!data || busy}><Plus size={19} /> Thêm spot</button><button className="avatar" title="Xuất bản sao dữ liệu JSON" aria-label="Xuất dữ liệu" onClick={exportData} disabled={!data}><Download size={19} /></button></div>
     </header>
     {error && <div className="error-banner" role="alert">{error}<button onClick={() => void load()} disabled={busy}>Tải lại dữ liệu</button><button className="icon-button" onClick={() => setError('')} aria-label="Đóng thông báo"><X size={16} /></button></div>}
-    {isMobile && <MobileScout locations={data?.locations || []} tours={data?.tours || []} activeTourId={tour?.id || ''} ready={!!data} busy={busy} error={error} onChooseTour={chooseTour} onCreateTour={createSelectedTour} onUpdateTour={async (next, locationId, action) => (await updateTour(next, locationId, action)) ?? false} onDelete={deleteLocation} onEdit={setEdit} onUpdate={updateLocation} onCreate={async location => {
+    {isMobile && <MobileScout locations={data?.locations || []} tours={data?.tours || []} activeTourId={tour?.id || ''} ready={!!data} busy={busy} error={error} onChooseTour={chooseTour} onCreateTour={createSelectedTour} onUpdateTour={async (next, locationId, action) => (await updateTour(next, locationId, action)) ?? false} onDelete={deleteLocation} onDeleteTour={deleteTour} onEdit={setEdit} onUpdate={updateLocation} onCreate={async location => {
       if (!data) return false;
       return save({ ...data, locations: [...data.locations.filter(l => l.id !== location.id), location] });
     }} />}
