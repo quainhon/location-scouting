@@ -187,15 +187,10 @@ async function writeWorkspace(db: D1Database, state: Record<string, unknown>) {
   const prevTourIds = new Set(previous.tours.map((t: Record<string, unknown>) => t.id));
   const nextLocIds = new Set((state.locations as Record<string, unknown>[]).map(l => l.id));
   const nextTourIds = new Set((state.tours as Record<string, unknown>[]).map(t => t.id));
-  if ([...prevTourIds].some(id => !nextTourIds.has(id))) {
-    const err = new Error('Không hỗ trợ xóa vĩnh viễn. Hãy dùng Archive.') as Error & { status: number };
-    err.status = 400;
-    throw err;
-  }
-
   // Build batched statements
   const stmts: D1PreparedStatement[] = [];
   stmts.push(db.prepare('DELETE FROM tour_stops'));
+  for (const id of prevTourIds) if (!nextTourIds.has(id)) stmts.push(db.prepare('DELETE FROM tours WHERE id=?').bind(id));
   stmts.push(db.prepare('DELETE FROM location_photos'));
   stmts.push(db.prepare('DELETE FROM location_checklist'));
   stmts.push(db.prepare('DELETE FROM location_history'));
