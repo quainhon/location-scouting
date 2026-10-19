@@ -19,10 +19,11 @@ type Props = {
   onUpdateTour: (tour: Tour, locationId?: string, action?: string) => Promise<boolean>;
   onUpdate: (location: ScoutLocation, action: string) => Promise<boolean>;
   onDelete: (location: ScoutLocation) => Promise<boolean>;
+  onDeleteTour: (tour: Tour) => Promise<boolean>;
   onEdit: (location: ScoutLocation) => void;
 };
 
-export function MobileScout({ locations, tours, activeTourId, ready, busy, error, onCreate, onCreateTour, onChooseTour, onUpdateTour, onUpdate, onDelete, onEdit }: Props) {
+export function MobileScout({ locations, tours, activeTourId, ready, busy, error, onCreate, onCreateTour, onChooseTour, onUpdateTour, onUpdate, onDelete, onDeleteTour, onEdit }: Props) {
   const photoDraft = usePhotoDraft();
   const videoDraft = useVideoDraft();
   const [mediaBusy, setMediaBusy] = useState(false);
@@ -151,7 +152,7 @@ export function MobileScout({ locations, tours, activeTourId, ready, busy, error
         <div className="scout-list-title"><div><p>ĐI THEO THỨ TỰ BẠN CHỌN</p><h1>Lộ trình</h1></div><button aria-label="Tạo lộ trình mới" disabled={!ready || working || !active.length} onClick={() => setBuilderOpen(true)}><Plus /></button></div>
         <label className="scout-route-select"><select aria-label="Chọn lộ trình trên điện thoại" value={currentTour?.id || ''} disabled={!availableTours.length} onChange={e => onChooseTour(e.target.value)}><option value="" disabled>{availableTours.length ? 'Chọn một lộ trình' : 'Chưa có lộ trình đã lưu'}</option>{availableTours.map(t => <option key={t.id} value={t.id}>{t.title} · {t.stops.length} điểm</option>)}</select></label>
         
-        {currentTour ? <><div className="scout-route-heading"><div><h2>{currentTour.title}</h2></div><button onClick={() => { setRouteSelectedId(''); setRouteReorderOpen(false); setFit(n => n + 1); setRouteMapOpen(true); }} disabled={currentStops.length < 2}><MapIcon size={17} />Xem route</button></div>
+        {currentTour ? <><div className="scout-route-heading"><div><h2>{currentTour.title}</h2></div><button className="scout-route-delete" onClick={() => void onDeleteTour(currentTour)} disabled={working}><Trash2 size={16} />Xóa</button><button onClick={() => { setRouteSelectedId(''); setRouteReorderOpen(false); setFit(n => n + 1); setRouteMapOpen(true); }} disabled={currentStops.length < 2}><MapIcon size={17} />Xem route</button></div>
           {currentStops.length ? <ol className="scout-route-stops">{currentStops.map((stop, index) => <li key={stop.id}><span className="number">{index + 1}</span><span className="scout-route-stop-copy"><strong>{stop.location.name}</strong><small>{stop.location.region || 'Chưa ghi khu vực'}</small></span><button aria-label={`Đưa ${stop.location.name} lên trước`} disabled={working || index === 0} onClick={() => void onUpdateTour(moveStop(currentTour, stop.id, 'up'))}><ArrowUp size={18} /></button><button aria-label={`Đưa ${stop.location.name} xuống sau`} disabled={working || index === currentStops.length - 1} onClick={() => void onUpdateTour(moveStop(currentTour, stop.id, 'down'))}><ArrowDown size={18} /></button><button className='route-remove' aria-label={'Xóa ' + stop.location.name + ' khỏi lộ trình'} title='Xóa khỏi lộ trình' disabled={working} onClick={() => { if (window.confirm('Xóa ' + stop.location.name + ' khỏi lộ trình này? Spot vẫn được giữ trong thư viện.')) void onUpdateTour(removeStopFromTour(currentTour, stop.id), stop.location_id, 'Xóa khỏi lộ trình của tour').then(ok => ok && setNotice('Đã xóa spot khỏi lộ trình.')); }}><Trash2 size={17} /></button></li>)}</ol> : <div className="scout-empty"><Route size={34} /><h2>Tour chưa có spot</h2><button onClick={() => setBuilderOpen(true)} disabled={!ready || working || !active.length}>Chọn spots</button></div>}
         </> : <div className="scout-empty"><Route size={34} /><h2>Chưa có lộ trình</h2><button onClick={() => setBuilderOpen(true)} disabled={!ready || working || !active.length}>Chọn spots</button></div>}
       </section> : <section className="scout-list">

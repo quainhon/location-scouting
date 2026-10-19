@@ -66,3 +66,5 @@
 @media (min-width:651px) and (max-width:1000px) {
   .workspace.spot-closed { grid-template-columns:265px minmax(0,1fr); }
 }
+
+.tour-switch .delete-tour-button{color:#a34a3d}.tour-switch .delete-tour-button:hover{background:#fff0ed;border-color:#f1d4cc}

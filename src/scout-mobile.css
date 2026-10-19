@@ -152,3 +152,5 @@ dialog.scout-sheet{position:fixed;inset:auto 0 0;width:100%;max-width:650px;max-
   flex-direction:row;
   gap:0;
 }
+
+.scout-route-heading .scout-route-delete{background:#fff0ed;color:#a34a3d;border-color:#f1d4cc}.scout-route-heading .scout-route-delete:hover{background:#ffe7e0;border-color:#e8bdb3}

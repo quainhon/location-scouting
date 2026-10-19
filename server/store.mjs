@@ -85,8 +85,9 @@ export function openStore(filename) {
       if (state.revision !== previous.revision) throw Object.assign(new Error('Dữ liệu đã thay đổi ở cửa sổ khác. Tải lại trước khi lưu.'), {status:409});
       state = { ...state, locations: state.locations.map(l => l.videos === undefined ? { ...l, videos: previous.locations.find(old => old.id === l.id)?.videos || [] } : l) };
       validate(state);
-      if (previous.tours.some(t => !state.tours.some(n => n.id === t.id))) throw Object.assign(new Error('Không hỗ trợ xóa tour vĩnh viễn.'), {status:400});
       db.exec('DELETE FROM tour_stops; DELETE FROM location_videos; DELETE FROM location_photos; DELETE FROM location_checklist; DELETE FROM location_history;');
+      const retainedTours = new Set(state.tours.map(t => t.id));
+      for (const tour of previous.tours) if (!retainedTours.has(tour.id)) db.prepare('DELETE FROM tours WHERE id=?').run(tour.id);
       const retainedLocations = new Set(state.locations.map(l => l.id));
       for (const location of previous.locations) if (!retainedLocations.has(location.id)) db.prepare('DELETE FROM scout_locations WHERE id=?').run(location.id);
       for (const l of state.locations) {

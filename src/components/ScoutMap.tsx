@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { LocateFixed, Minus, Plus, MapPin, X, Car, LoaderCircle, Map as MapIcon, Satellite as SatelliteIcon } from 'lucide-react';
+import { LocateFixed, Minus, Plus, MapPin, X, Car, LoaderCircle, Eye, EyeOff, Map as MapIcon, Satellite as SatelliteIcon } from 'lucide-react';
 import type { ScoutLocation, HydratedTourStop, GeoPoint } from '../types/scout';
 import { fetchDrivingRoute, routeKey, type DrivingRoute } from '../utils/routing';
 
@@ -19,13 +19,15 @@ export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft
   useEffect(() => { if (pickSignal) setPlacing(true); }, [pickSignal]);
   const [zoom, setZoom] = useState(12);
   const [routing, setRouting] = useState<{ key: string; route?: DrivingRoute; error?: string }>({ key: '' });
+  const [routeVisible, setRouteVisible] = useState(true);
   const select = useRef(onSelect); select.current = onSelect;
   const createDraft = useRef(onCreateDraft); createDraft.current = onCreateDraft;
   const stopsRef = useRef(stops); stopsRef.current = stops;
   const locationsRef = useRef(locations); locationsRef.current = locations;
   const coordinates = stops.map(s => s.location.coordinates); const key = routeKey(coordinates);
-  const activeRoute = routing.key === key ? routing.route : undefined;
-  const routingError = routing.key === key ? routing.error : undefined;
+  useEffect(() => { setRouteVisible(true); }, [key]);
+  const activeRoute = routeVisible && routing.key === key ? routing.route : undefined;
+  const routingError = routeVisible && routing.key === key ? routing.error : undefined;
   const routeRef = useRef(activeRoute); routeRef.current = activeRoute;
   useEffect(() => {
     if (!root.current) return;
@@ -108,7 +110,7 @@ export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft
     return () => { live = false; window.clearTimeout(fallbackTimer); tile.remove(); };
   }, [layer, retry]);
   useEffect(() => {
-    if (coordinates.length < 2) { setRouting({ key }); return; }
+    if (!routeVisible || coordinates.length < 2) { setRouting({ key }); return; }
     const controller = new AbortController(); let timedOut = false;
     setRouting({ key });
     const timer = setTimeout(() => {
@@ -118,7 +120,7 @@ export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft
       }).finally(() => clearTimeout(timeout));
     }, 1100);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [key, routeRetry]);
+  }, [key, routeRetry, routeVisible]);
   useEffect(() => {
     if (!map.current) return;
     const group = L.layerGroup().addTo(map.current);
@@ -159,22 +161,22 @@ export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft
     const instance = map.current; if (!instance) return;
     const points = stopsRef.current.length ? stopsRef.current.map(s => s.location) : locationsRef.current.filter(l => l.status === 'active');
     const latlngs: [number, number][] = points.map(l => [l.coordinates.lat, l.coordinates.lng]);
-    if (routeRef.current) latlngs.push(...routeRef.current.points);
+    if (routeVisible && routeRef.current) latlngs.push(...routeRef.current.points);
     if (latlngs.length) instance.fitBounds(L.latLngBounds(latlngs), { paddingTopLeft: [40, 135], paddingBottomRight: [50, 140], maxZoom: points.length === 1 ? 17 : 16 });
     else instance.setView(QUAI_NHON_CENTER, window.matchMedia('(max-width: 650px)').matches ? QUAI_NHON_MOBILE_ZOOM : QUAI_NHON_DESKTOP_ZOOM);
   }
-  useEffect(() => { fit(); }, [fitSignal, key]);
+  useEffect(() => { fit(); }, [fitSignal, key, routeVisible]);
   // A selection focuses closely without continually resetting the user's pan/zoom.
   const selected = locations.find(l => l.id === selectedId);
   useEffect(() => { if (focusSelected && selected) map.current?.setView([selected.coordinates.lat, selected.coordinates.lng], Math.max(map.current.getZoom(), 17), { animate: false }); }, [focusSelected, selectedId, selected?.coordinates.lat, selected?.coordinates.lng]);
   return <>
     {/* Keep className stable: Leaflet owns runtime classes on this element. */}
     <div className="leaflet-root" data-placing={placing || undefined} ref={root} aria-label="Bản đồ tương tác: kéo để di chuyển, chụm hai ngón để zoom" />
-    <div className="map-layers"><button className={layer === 'map' ? 'active' : ''} aria-label="Bản đồ" title="Bản đồ" aria-pressed={layer === 'map'} onClick={() => { mobileFallbackAttempted.current = false; setLayer('map'); setTileNotice(''); }}>{compactControls ? <MapIcon size={20} aria-hidden="true" /> : 'Map'}</button><button className={layer === 'satellite' ? 'active' : ''} aria-label="Vệ tinh" title="Vệ tinh" aria-pressed={layer === 'satellite'} onClick={() => { mobileFallbackAttempted.current = true; setLayer('satellite'); setTileNotice(''); }}>{compactControls ? <SatelliteIcon size={20} aria-hidden="true" /> : 'Satellite'}</button></div>
+    <div className="map-layers"><button className={layer === 'map' ? 'active' : ''} aria-label="Bản đồ" title="Bản đồ" aria-pressed={layer === 'map'} onClick={() => { mobileFallbackAttempted.current = false; setLayer('map'); setTileNotice(''); }}>{compactControls ? <MapIcon size={20} aria-hidden="true" /> : 'Map'}</button><button className={layer === 'satellite' ? 'active' : ''} aria-label="Vệ tinh" title="Vệ tinh" aria-pressed={layer === 'satellite'} onClick={() => { mobileFallbackAttempted.current = true; setLayer('satellite'); setTileNotice(''); }}>{compactControls ? <SatelliteIcon size={20} aria-hidden="true" /> : 'Satellite'}</button>{stops.length >= 2 && <button className={routeVisible ? 'active' : ''} aria-label={routeVisible ? 'Tắt tuyến đường' : 'Bật tuyến đường'} title={routeVisible ? 'Ẩn tuyến đường' : 'Hiện tuyến đường'} aria-pressed={routeVisible} onClick={() => setRouteVisible(visible => !visible)}>{compactControls ? routeVisible ? <Eye size={20} aria-hidden="true" /> : <EyeOff size={20} aria-hidden="true" /> : routeVisible ? 'Ẩn tuyến' : 'Hiện tuyến'}</button>}</div>
     <button className={`place-pin-button ${placing ? 'active' : ''}`} onClick={() => setPlacing(v => !v)} aria-pressed={placing} aria-label={placing ? 'Hủy đặt pin' : 'Đặt pin trên bản đồ'} title={placing ? 'Hủy đặt pin' : 'Đặt pin trên bản đồ'}>{placing ? <X size={20} aria-hidden="true" /> : <MapPin size={20} aria-hidden="true" />}{!compactControls && (placing ? 'Hủy' : 'Đặt pin')}</button>
     {placing && <div className="placing-hint" role="status">Kéo / zoom để tìm vị trí, rồi nhấp hoặc chạm bản đồ để đặt pin.</div>}
     <div className="map-controls"><button aria-label="Xem toàn bộ lộ trình" title="Xem toàn bộ lộ trình" onClick={fit}><LocateFixed size={21} /></button><div><button aria-label="Phóng to" disabled={zoom >= 20} onClick={() => map.current?.zoomIn()}><Plus size={23} /></button><button aria-label="Thu nhỏ" disabled={zoom <= 3} onClick={() => map.current?.zoomOut()}><Minus size={23} /></button></div></div>
     {(tileError || tileNotice) && <div className="map-error" role="status">{tileError ? 'Chưa tải được bản đồ. Kiểm tra kết nối mạng.' : tileNotice}{tileError && <button onClick={() => { mobileFallbackAttempted.current = false; setTileNotice(''); setRetry(n => n + 1); }}>Thử lại bản đồ</button>}<button aria-label="Đóng thông báo bản đồ" onClick={() => { setTileError(false); setTileNotice(''); }}><X size={14} /></button></div>}
-    {stops.length >= 2 && <div className="route-summary" role="status">{activeRoute ? <><strong><Car size={16} />Ô tô · {(activeRoute.distance / 1000).toFixed(1)} km · ~{Math.max(1, Math.round(activeRoute.duration / 60))} phút đi</strong>{activeRoute.offRoad && <span>Một số pin cách đường ô tô trên 150 m; cần đi bộ đoạn cuối.</span>}</> : routingError ? <><span>{routingError}</span><button onClick={() => setRouteRetry(n => n + 1)}>Thử lại tuyến</button></> : <strong><LoaderCircle className="spin" size={16} />Đang tính tuyến ô tô…</strong>}<small>OSRM / FOSSGIS · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a> · <a href="https://www.openstreetmap.org/" target="_blank" rel="noreferrer">Sửa bản đồ</a></small></div>}
+    {routeVisible && stops.length >= 2 && <div className="route-summary" role="status">{activeRoute ? <><strong><Car size={16} />Ô tô · {(activeRoute.distance / 1000).toFixed(1)} km · ~{Math.max(1, Math.round(activeRoute.duration / 60))} phút đi</strong>{activeRoute.offRoad && <span>Một số pin cách đường ô tô trên 150 m; cần đi bộ đoạn cuối.</span>}</> : routingError ? <><span>{routingError}</span><button onClick={() => setRouteRetry(n => n + 1)}>Thử lại tuyến</button></> : <strong><LoaderCircle className="spin" size={16} />Đang tính tuyến ô tô…</strong>}<small>OSRM / FOSSGIS · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a> · <a href="https://www.openstreetmap.org/" target="_blank" rel="noreferrer">Sửa bản đồ</a></small></div>}
   </>;
 }
