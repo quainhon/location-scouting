@@ -15,9 +15,9 @@ The workflow is not active until this repository is connected to GitHub with Act
 
 1. A private R2 bucket controlled by the team (for example, `location-scout-backups`).
 2. Repository secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and `LOCATION_SCOUT_BACKUP_R2_BUCKET`.
-3. A Cloudflare API token scoped to the required D1 read/export and R2 object write permissions for this account and bucket.
+3. A Cloudflare Account API token with D1 Write permission and R2 object read/write permission scoped to this bucket. The Actions run confirmed that D1 Read alone is rejected by this account's D1 export endpoint. In the dashboard policy UI, D1 Write applies account-wide; it can modify every D1 database in the account. Use this only when that scope is acceptable.
 
-After setup, run the workflow with **Run workflow** and leave the expected location count at `7` for the current acceptance drill. The job restores the export into isolated SQLite, uploads it, downloads the R2 copy, compares the bytes, and restores that copy again while checking the seven locations. Confirm both objects appear in the private bucket. Scheduled runs occur daily at 02:17 UTC without a fixed point-count expectation. Each run uses a timestamped key and does not overwrite prior backups. The R2 bucket is a separate storage service in the team's Cloudflare account; choose another destination if policy requires a different provider or account.
+After setup, run the workflow with **Run workflow** and leave the expected active location count at `7` for the current acceptance drill. Archived locations remain in the SQL backup and are counted separately. The job restores the export into isolated SQLite, uploads it, downloads the R2 copy, compares the bytes, and restores that copy again while checking the seven active locations. Confirm both objects appear in the private bucket. Scheduled runs occur daily at 02:17 UTC without a fixed point-count expectation. Each run uses a timestamped key and does not overwrite prior backups. Wrangler's export output is captured and redacted so its temporary signed download URL is not written to Actions logs. The R2 bucket is a separate storage service in the team's Cloudflare account; choose another destination if policy requires a different provider or account.
 
 ## Restore verification
 
@@ -28,7 +28,7 @@ npx --yes wrangler@4 r2 object get location-scout-backups/location-scout/backups
 node scripts/verify-d1-export.mjs ./location-scout-backup.sql 7
 ```
 
-Use the actual bucket name and object timestamp. The final `7` is for the current acceptance check only; omit it for later backups after the expected point count changes. The verifier checks SQLite integrity, all core workspace and media tables, and the restored location count. It never connects to or changes production. For a full Cloudflare restore drill, create a separate temporary D1 database and execute the dump against that database only; verify its location count before deleting the temporary database.
+Use the actual bucket name and object timestamp. The final `7` is for the current acceptance check only; it checks active locations and can be omitted for later backups after the expected active count changes. The verifier checks SQLite integrity, all core workspace and media tables, and reports active and archived location counts separately. It never connects to or changes production. For a full Cloudflare restore drill, create a separate temporary D1 database and execute the dump against that database only; verify its location count before deleting the temporary database.
 
 ## Local SQLite deployments
 
