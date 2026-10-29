@@ -7,10 +7,11 @@ At widths up to 650px, the workspace opens directly on the map. Desktop retains 
 - + Scout opens a native dialog styled as a bottom sheet. Location permission is requested only after this action.
 - GPS failure offers retry or explicit map placement. A valid position is required; name, notes and impression are optional.
 - A generated name supplies the existing server's required name field. Ratings use `scout:rating:*` entries in the existing tags array.
-- Capture first saves the point payload and photo/video Blobs to IndexedDB on this device. It can be saved without network; pending entries remain visible with **Chờ đồng bộ**.
-- When online, queued captures upload one at a time in creation order. Media uploads are content-addressed and retryable; a queue entry is removed only after the revision-aware workspace API confirms the location. The sync path reads the latest workspace before writing, so it does not blindly replay a stale snapshot after a revision conflict.
-- Reloading the app keeps queued capture data in IndexedDB. If the browser cannot open IndexedDB, offline save is disabled and the online server flow remains available.
-- A queued location cannot be edited or archived until sync is confirmed. This keeps its persisted payload and attached media together.
+- Capture first saves the point payload and photo/video Blobs to IndexedDB on this device. It can be saved without network; pending entries appear immediately on the map and in the library with **Chờ đồng bộ**. Pending map pins are amber, and a persistent sync bar shows the queue count and **Đồng bộ ngay** on every mobile tab.
+- When online, queued captures upload one at a time in creation order. Sync starts on app open, the browser `online` event, return to a visible tab, and the manual button. Failed entries stay in IndexedDB with their error and retry schedule; automatic retries use exponential delays from 1 second up to 5 minutes. The queue entry is removed only after the revision-aware workspace API confirms the location.
+- Every quick capture receives one UUID at capture time. Retrying reuses that ID; the workspace API and SQLite/D1 primary key upsert preserve one row for the same ID. The sync path reads the latest workspace before writing, so it does not blindly replay a stale snapshot after a revision conflict.
+- Reloading the app keeps queued capture data, photos, and retry metadata in IndexedDB. If the browser cannot open IndexedDB, offline save is disabled and the online server flow remains available.
+- A queued location cannot be edited, have its survey status changed, or be archived until sync is confirmed. The detail view explains this while the queue owns the local payload and attached media.
 
 ## Review
 
@@ -22,6 +23,6 @@ The session control counts elapsed time and successful captures in this open mob
 
 ## Verification
 
-Run `npm run build` and `npm test`. Quick capture tests cover default records, invalid coordinates, optional ratings, legacy status mapping and local-day filtering.
+Run `npm run build` and `npm test`. Quick capture tests cover default records, invalid coordinates, optional ratings, legacy status mapping and local-day filtering. Offline queue tests cover Blob persistence, creation order, retry metadata and bounded exponential backoff. The D1 workspace test simulates a committed create with a lost response and confirms retrying the same UUID keeps one spot.
 
-Manual checks: 360/390/430px mobile layouts; map placement without GPS; save and reopen a point; rating persistence; notes editing; archive/restore; failed save/retry; desktop at 1280px. Use a separate SCOUT_DB for manual test records.
+Manual checks: 360/390/430px mobile layouts; map placement without GPS; save and reopen a point; rating persistence; notes editing; archive/restore; failed save/retry; desktop at 1280px. Use a separate SCOUT_DB for manual test records. Physical-phone acceptance still requires airplane-mode captures, force-close/reopen, a second-device visibility check, mid-sync network interruption, and a lost-response test; automated repository tests do not substitute for those device checks.

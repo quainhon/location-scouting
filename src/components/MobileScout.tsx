@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Archive, ArrowDown, ArrowUp, Check, ChevronRight, ExternalLink, LocateFixed, Map as MapIcon, MapPin, Plus, Route, Search, Trash2, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Archive, ArrowDown, ArrowUp, Check, ChevronRight, ExternalLink, LocateFixed, Map as MapIcon, MapPin, Plus, RefreshCw, Route, Search, Trash2, X } from 'lucide-react';
 import type { GeoPoint, ScoutLocation, Tour } from '../types/scout';
 import { hydrateTourStops, moveStop, removeStopFromTour } from '../utils/invariants';
 import { ScoutMap } from './ScoutMap';
@@ -11,7 +11,7 @@ import { TourBuilder } from './MobileTours';
 import { AddLocationVideos, VideoGallery, VideoPicker, useVideoDraft } from './ScoutVideos';
 import { uploadVideos } from '../utils/videos';
 import { googleMapsDirectionsUrl } from '../utils/routing';
-import { listQueuedCaptures, removeQueuedCapture, saveQueuedCapture, type QueuedCapture } from '../utils/offlineCaptures';
+import { listQueuedCaptures, recordQueuedCaptureFailure, removeQueuedCapture, saveQueuedCapture, type QueuedCapture } from '../utils/offlineCaptures';
 
 type Props = {
   locations: ScoutLocation[]; tours: Tour[]; activeTourId: string; ready: boolean; busy: boolean; error: string;
@@ -39,6 +39,7 @@ export function MobileScout({ locations, tours, activeTourId, ready, busy, error
   const [queueAvailable, setQueueAvailable] = useState(() => 'indexedDB' in globalThis);
   const submitLock = useRef(false);
   const syncLock = useRef(false);
+  const queueRetryTimer = useRef<number | undefined>(undefined);
   const onCreateRef = useRef(onCreate); onCreateRef.current = onCreate;
   const working = busy || mediaBusy || uploading;
   const [page, setPage] = useState<'map' | 'route' | 'library'>('map');
@@ -75,12 +76,23 @@ export function MobileScout({ locations, tours, activeTourId, ready, busy, error
   const routeSelectedIndex = routeSelectedStop ? currentStops.findIndex(stop => stop.id === routeSelectedStop.id) : -1;
   const knownLocationIds = new Set(locations.map(location => location.id));
   const displayLocations = [...locations, ...queued.filter(item => !knownLocationIds.has(item.id)).map(item => ({ ...item.location, photos: queuedPhotoPreviews[item.id] ?? [] }))];
+  const pendingIds = useMemo(() => new Set(queued.map(item => item.id)), [queued]);
   const selected = displayLocations.find(l => l.id === selectedId);
   const selectedIsQueued = !!selected && queued.some(item => item.id === selected.id);
   const activeDisplay = displayLocations.filter(l => l.status === 'active');
   const scoutedCount = activeDisplay.filter(l => ['scouted', 'approved'].includes(l.scouting_status || '')).length;
+  const queueStatus = syncingId
+    ? 'Đang gửi điểm và ảnh lên máy chủ…'
+    : !online
+      ? 'Ngoại tuyến · điểm và ảnh vẫn được giữ trên điện thoại.'
+      : queued[0]?.lastError
+        ? `${queued[0].lastError} Điểm vẫn nằm trong hàng đợi và sẽ tự thử lại.`
+        : 'Đã lưu trên điện thoại · sẽ đồng bộ khi có mạng.';
   function setQueueSnapshot(items: QueuedCapture[]) {
-    setQueued(current => current.length === items.length && current.every((item, index) => item.id === items[index]?.id) ? current : items);
+    setQueued(current => current.length === items.length && current.every((item, index) => {
+      const next = items[index];
+      return item.id === next?.id && item.retryCount === next?.retryCount && item.nextAttemptAt === next?.nextAttemptAt && item.lastError === next?.lastError;
+    }) ? current : items);
   }
   const visible = displayLocations.filter(l => {
     if (filter === 'archived' ? l.status !== 'archived' : l.status !== 'active') return false;
@@ -102,16 +114,27 @@ export function MobileScout({ locations, tours, activeTourId, ready, busy, error
   useEffect(() => {
     let mounted = true;
     const refresh = async () => {
-      try { const items = await listQueuedCaptures(); if (mounted) { setQueueSnapshot(items); setQueueAvailable(true); } }
-      catch { if (mounted) setQueueAvailable(false); }
+      try { const items = await listQueuedCaptures(); if (mounted) { setQueueSnapshot(items); setQueueAvailable(true); } return items; }
+      catch { if (mounted) setQueueAvailable(false); return null; }
     };
-    const handleOnline = () => { setOnline(true); void syncQueue(); };
+    const handleOnline = () => { setOnline(true); void syncQueue(true); };
     const handleOffline = () => setOnline(false);
-    void refresh().then(() => { if (navigator.onLine) void syncQueue(); });
+    const handleVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
+      setOnline(navigator.onLine);
+      void refresh().then(items => { if (items?.length && navigator.onLine) void syncQueue(true); });
+    };
+    void refresh().then(items => { if (items?.length && navigator.onLine) void syncQueue(true); });
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    const retry = window.setInterval(() => { void refresh(); if (navigator.onLine) void syncQueue(); }, 15000);
-    return () => { mounted = false; window.clearInterval(retry); window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline); };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      mounted = false;
+      if (queueRetryTimer.current !== undefined) window.clearTimeout(queueRetryTimer.current);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, []);
   useEffect(() => {
     const previews: Record<string, NonNullable<ScoutLocation['photos']>> = {};
@@ -128,14 +151,29 @@ export function MobileScout({ locations, tours, activeTourId, ready, busy, error
     return () => window.removeEventListener('beforeunload', guard);
   }, [photoDraft.photos.length, videoDraft.videos.length, uploading]);
   useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(''), 5000); return () => clearTimeout(timer); }, [notice]);
-  async function syncQueue() {
-    if (syncLock.current || !navigator.onLine) return;
+  function scheduleQueueRetry(delayMs: number) {
+    if (queueRetryTimer.current !== undefined) window.clearTimeout(queueRetryTimer.current);
+    queueRetryTimer.current = window.setTimeout(() => {
+      queueRetryTimer.current = undefined;
+      void syncQueue();
+    }, Math.max(250, delayMs));
+  }
+  async function syncQueue(force = false) {
+    if (syncLock.current) return;
+    if (!navigator.onLine) { setOnline(false); return; }
+    if (queueRetryTimer.current !== undefined) { window.clearTimeout(queueRetryTimer.current); queueRetryTimer.current = undefined; }
     syncLock.current = true;
+    let syncedCount = 0;
+    let failedMessage = '';
     try {
       const items = await listQueuedCaptures();
       setQueueSnapshot(items); setQueueAvailable(true);
       for (const item of items) {
-        if (!navigator.onLine) break;
+        if (!navigator.onLine) { setOnline(false); break; }
+        if (!force && item.nextAttemptAt && item.nextAttemptAt > Date.now()) {
+          scheduleQueueRetry(item.nextAttemptAt - Date.now());
+          break;
+        }
         setSyncingId(item.id);
         const videoPreviews: string[] = [];
         try {
@@ -146,15 +184,30 @@ export function MobileScout({ locations, tours, activeTourId, ready, busy, error
           });
           const videos = await uploadVideos(videoDrafts, setProgress);
           const confirmed = await onCreateRef.current({ ...item.location, photos, videos });
-          if (!confirmed) break;
+          if (!confirmed) throw new Error(error || 'Máy chủ chưa xác nhận địa điểm.');
           await removeQueuedCapture(item.id);
           const remaining = await listQueuedCaptures();
           setQueueSnapshot(remaining);
-          setNotice(`Đã đồng bộ “${item.location.name}”.`);
+          syncedCount++;
+        } catch (e) {
+          const rawMessage = (e as Error).message || '';
+          const message = /failed to fetch|network|load failed|timeout/i.test(rawMessage)
+            ? 'Kết nối bị gián đoạn.'
+            : rawMessage.slice(0, 180) || 'Máy chủ chưa xác nhận địa điểm.';
+          try {
+            const failed = await recordQueuedCaptureFailure(item.id, message);
+            const remaining = await listQueuedCaptures();
+            setQueueSnapshot(remaining);
+            if (failed?.nextAttemptAt) scheduleQueueRetry(failed.nextAttemptAt - Date.now());
+          } catch { /* Keep the in-memory queue visible even if retry metadata cannot be written. */ }
+          failedMessage = `Chưa đồng bộ “${item.location.name}”. Điểm và ảnh vẫn được giữ trên điện thoại.`;
+          break;
         } finally { videoPreviews.forEach(URL.revokeObjectURL); }
       }
+      if (failedMessage) setNotice(failedMessage);
+      else if (syncedCount > 0) setNotice(syncedCount === 1 ? 'Đã đồng bộ 1 địa điểm.' : `Đã đồng bộ ${syncedCount} địa điểm.`);
     } catch {
-      setNotice('Chờ đồng bộ: điểm và ảnh vẫn được giữ trên điện thoại.');
+      setNotice('Không đọc được hàng đợi ngoại tuyến. Điểm vẫn còn trên thiết bị.');
     } finally { setSyncingId(''); syncLock.current = false; }
   }
   function locate() {
@@ -202,7 +255,7 @@ export function MobileScout({ locations, tours, activeTourId, ready, busy, error
           photoDraft.clear(); videoDraft.clear();
           setPage('map'); setFit(n => n + 1);
           setNotice(online ? 'Đã lưu trên điện thoại · đang chờ máy chủ xác nhận đồng bộ.' : 'Đã lưu trên điện thoại · chờ đồng bộ khi có mạng.');
-          if (navigator.onLine) window.setTimeout(() => void syncQueue(), 0);
+          if (navigator.onLine) window.setTimeout(() => void syncQueue(true), 0);
           return;
         } catch (e) {
           setQueueAvailable(false);
@@ -239,7 +292,7 @@ export function MobileScout({ locations, tours, activeTourId, ready, busy, error
     </section>}
     <main className="scout-content">
       {page === 'map' ? <section className="scout-map" aria-label="Bản đồ khảo sát">
-        <ScoutMap locations={displayLocations} stops={currentStops} selectedId="" onSelect={setSelectedId} onCreateDraft={p => { if (!busy) startCapture(p); }} draftPoint={point} fitSignal={fit} pickSignal={pickSignal} compactControls />
+        <ScoutMap locations={displayLocations} pendingIds={pendingIds} stops={currentStops} selectedId="" onSelect={setSelectedId} onCreateDraft={p => { if (!busy) startCapture(p); }} draftPoint={point} fitSignal={fit} pickSignal={pickSignal} compactControls />
       </section> : page === 'route' ? <section className="scout-list scout-route-list">
         <div className="scout-list-title"><div><p>ĐI THEO THỨ TỰ BẠN CHỌN</p><h1>Lộ trình</h1></div><button aria-label="Tạo lộ trình mới" disabled={!ready || working || !active.length} onClick={() => setBuilderOpen(true)}><Plus /></button></div>
         <label className="scout-route-select"><select aria-label="Chọn lộ trình trên điện thoại" value={currentTour?.id || ''} disabled={!availableTours.length} onChange={e => onChooseTour(e.target.value)}><option value="" disabled>{availableTours.length ? 'Chọn một lộ trình' : 'Chưa có lộ trình đã lưu'}</option>{availableTours.map(t => <option key={t.id} value={t.id}>{t.title} · {t.stops.length} điểm</option>)}</select></label>
@@ -258,6 +311,10 @@ export function MobileScout({ locations, tours, activeTourId, ready, busy, error
         {visible.map(l => { const pending = queued.some(item => item.id === l.id); return <button className="scout-card" key={l.id} onClick={() => setSelectedId(l.id)}><Thumbnail location={l} /><span><strong>{l.name}</strong><small>{new Date(l.created_at).toLocaleString('vi-VN', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })} · {l.region || 'Chưa ghi khu vực'}</small><em className={`scout-status-chip ${pending ? 'pending' : l.status === 'archived' ? 'archived' : l.scouting_status || 'not_scouted'}`}>{pending ? (syncingId === l.id ? 'Đang đồng bộ' : 'Chờ đồng bộ') : l.status === 'archived' ? 'Đã lưu trữ' : scoutLabel(l)}</em></span><ChevronRight size={18} /></button>; })}
       </section>}
     </main>
+    {queued.length > 0 && <div className="scout-sync-bar" role="status" aria-live="polite">
+      <div><strong>{queued.length} điểm chờ đồng bộ</strong><small>{queueStatus}</small></div>
+      <button disabled={!online || !!syncingId} onClick={() => void syncQueue(true)}><RefreshCw size={16} />{syncingId ? 'Đang đồng bộ' : 'Đồng bộ ngay'}</button>
+    </div>}
     <nav className="scout-nav" aria-label="Điều hướng mobile">{tabs.map(([key, Icon, label]) => <button key={key} aria-current={page === key ? 'page' : undefined} aria-label={label} title={label} onClick={() => navigate(key)}><Icon size={23} aria-hidden="true" /></button>)}</nav>
     <dialog className="scout-sheet scout-route-builder" ref={routeDialog} aria-labelledby="route-builder-title" onCancel={e => { e.preventDefault(); setBuilderOpen(false); }}>
       <div className="scout-handle" /><div className="scout-sheet-heading"><div><p>ĐI THEO THỨ TỰ BẠN CHỌN</p><h2 id="route-builder-title">Tạo lộ trình</h2></div><button aria-label="Đóng bộ chọn lộ trình" onClick={() => setBuilderOpen(false)}><X /></button></div>
@@ -278,7 +335,7 @@ export function MobileScout({ locations, tours, activeTourId, ready, busy, error
         <details className="scout-extras"><summary>Thêm tên / ghi chú</summary><label>Tên địa điểm<input disabled={working} value={name} maxLength={150} onChange={e => setName(e.target.value)} placeholder="Để trống để đặt tên tự động" /></label><label>Ghi chú<textarea disabled={working} value={notes} maxLength={20000} rows={3} onChange={e => setNotes(e.target.value)} placeholder="Đường vào, giờ đẹp, điều cần kiểm tra…" /></label></details>
         {error && <p className="scout-error" role="alert">{error}</p>}
         {photoError && <p className="scout-error" role="alert">{photoError}</p>}<div className="scout-save"><button className="scout-primary" disabled={!point || (!queueAvailable && !online) || working || locating}><Check size={20} />{uploading ? progress || 'Đang lưu trên điện thoại…' : busy ? 'Đang lưu…' : 'Lưu địa điểm'}</button><small>{queueAvailable ? 'Lưu trên điện thoại trước; đồng bộ theo thứ tự khi có mạng.' : online ? 'Lưu trực tiếp khi có mạng.' : 'Bật IndexedDB để lưu ngoại tuyến.'}</small></div>
-      </form> : selected && <div className="scout-detail"><PhotoGallery photos={selected.photos || []} name={selected.name} /><VideoGallery videos={selected.videos || []} /><AddLocationVideos key={selected.id + "-videos"} existingCount={selected.videos?.length || 0} busy={working || selectedIsQueued} onBusyChange={setMediaBusy} onSave={videos => onUpdate({ ...selected, videos: [...(selected.videos || []).filter(v => !videos.some(n => n.id === v.id)), ...videos] }, "Thêm video khảo sát")} /><AddLocationPhotos key={selected.id} existingCount={selected.photos?.length || 0} busy={working || selectedIsQueued} onBusyChange={setMediaBusy} onSave={photos => onUpdate({ ...selected, photos: [...(selected.photos || []).filter(p => !photos.some(n => n.id === p.id)), ...photos] }, `Thêm ${photos.length} ảnh khảo sát`)} /><p>{selected.region || 'Chưa ghi khu vực'} · {selectedIsQueued ? (syncingId === selected.id ? 'Đang đồng bộ' : 'Chờ đồng bộ') : scoutLabel(selected)}</p><p className="scout-detail-notes">{selected.scouting_notes || 'Chưa có ghi chú. Bạn có thể bổ sung sau.'}</p><a className="button" href={`https://www.google.com/maps/search/?api=1&query=${selected.coordinates.lat},${selected.coordinates.lng}`} target="_blank" rel="noreferrer"><ExternalLink size={17} />Mở trên Google Maps</a><div className="scout-detail-status">{[['not_scouted', 'Mới lưu'], ['scouted', 'Đã khảo sát'], ['approved', 'Giữ lại']].map(([value, label]) => <button key={value} disabled={working || selectedIsQueued} aria-pressed={selected.scouting_status === value || value === 'not_scouted' && selected.scouting_status === 'candidate'} onClick={() => void onUpdate({ ...selected, scouting_status: value as ScoutLocation['scouting_status'] }, `Trạng thái: ${label}`)}>{label}</button>)}</div>{error && <p className="scout-error" role="alert">{error}</p>}<button className="scout-primary" disabled={working || selectedIsQueued} onClick={() => { setSelectedId(''); onEdit(selected); }}>Chỉnh sửa chi tiết</button><button className="scout-archive" disabled={working || selectedIsQueued} onClick={() => void onUpdate({ ...selected, status: selected.status === 'active' ? 'archived' : 'active' }, selected.status === 'active' ? 'Lưu trữ địa điểm' : 'Khôi phục địa điểm').then(ok => { if (ok) { setSelectedId(''); setNotice('Đã cập nhật địa điểm.'); } })}><Archive size={16} />{selected.status === 'active' ? 'Lưu trữ địa điểm' : 'Khôi phục địa điểm'}</button><button className='scout-delete' disabled={working || selectedIsQueued} onClick={() => void onDelete(selected).then(ok => { if (ok) { setSelectedId(''); setNotice('Đã xóa spot.'); } })}><Trash2 size={16} />Xóa vĩnh viễn</button></div>}
+      </form> : selected && <div className="scout-detail"><PhotoGallery photos={selected.photos || []} name={selected.name} /><VideoGallery videos={selected.videos || []} /><AddLocationVideos key={selected.id + "-videos"} existingCount={selected.videos?.length || 0} busy={working || selectedIsQueued} onBusyChange={setMediaBusy} onSave={videos => onUpdate({ ...selected, videos: [...(selected.videos || []).filter(v => !videos.some(n => n.id === v.id)), ...videos] }, "Thêm video khảo sát")} /><AddLocationPhotos key={selected.id} existingCount={selected.photos?.length || 0} busy={working || selectedIsQueued} onBusyChange={setMediaBusy} onSave={photos => onUpdate({ ...selected, photos: [...(selected.photos || []).filter(p => !photos.some(n => n.id === p.id)), ...photos] }, `Thêm ${photos.length} ảnh khảo sát`)} />{selectedIsQueued && <p className="scout-queue-note">Địa điểm này đang chờ đồng bộ. Bạn có thể sửa hoặc lưu trữ sau khi máy chủ xác nhận.</p>}<p>{selected.region || 'Chưa ghi khu vực'} · {selectedIsQueued ? (syncingId === selected.id ? 'Đang đồng bộ' : 'Chờ đồng bộ') : scoutLabel(selected)}</p><p className="scout-detail-notes">{selected.scouting_notes || 'Chưa có ghi chú. Bạn có thể bổ sung sau.'}</p><a className="button" href={`https://www.google.com/maps/search/?api=1&query=${selected.coordinates.lat},${selected.coordinates.lng}`} target="_blank" rel="noreferrer"><ExternalLink size={17} />Mở trên Google Maps</a><div className="scout-detail-status">{[['not_scouted', 'Mới lưu'], ['scouted', 'Đã khảo sát'], ['approved', 'Giữ lại']].map(([value, label]) => <button key={value} disabled={working || selectedIsQueued} aria-pressed={selected.scouting_status === value || value === 'not_scouted' && selected.scouting_status === 'candidate'} onClick={() => void onUpdate({ ...selected, scouting_status: value as ScoutLocation['scouting_status'] }, `Trạng thái: ${label}`)}>{label}</button>)}</div>{error && <p className="scout-error" role="alert">{error}</p>}<button className="scout-primary" disabled={working || selectedIsQueued} onClick={() => { setSelectedId(''); onEdit(selected); }}>Chỉnh sửa chi tiết</button><button className="scout-archive" disabled={working || selectedIsQueued} onClick={() => void onUpdate({ ...selected, status: selected.status === 'active' ? 'archived' : 'active' }, selected.status === 'active' ? 'Lưu trữ địa điểm' : 'Khôi phục địa điểm').then(ok => { if (ok) { setSelectedId(''); setNotice('Đã cập nhật địa điểm.'); } })}><Archive size={16} />{selected.status === 'active' ? 'Lưu trữ địa điểm' : 'Khôi phục địa điểm'}</button><button className='scout-delete' disabled={working || selectedIsQueued} onClick={() => void onDelete(selected).then(ok => { if (ok) { setSelectedId(''); setNotice('Đã xóa spot.'); } })}><Trash2 size={16} />Xóa vĩnh viễn</button></div>}
     </dialog>}
     {notice && <div className="scout-notice" role="status"><Check size={18} />{notice}<button aria-label="Đóng thông báo" onClick={() => setNotice('')}><X size={16} /></button></div>}
   </div>;

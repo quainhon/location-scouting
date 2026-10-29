@@ -49,4 +49,19 @@ describe('Cloudflare workspace compatibility using real SQLite SQL',()=>{
    const deleted=await response.json();expect(deleted.locations).toEqual([]);expect(deleted.tours[0].stops).toEqual([]);
   }finally{close();}
  });
+ it('keeps one location when a client retries the same UUID after losing the first response',async()=>{
+  const {db,close}=database();try {
+   const captureId='550e8400-e29b-41d4-a716-446655440000';
+   const capture=fixture();capture.locations[0].id=captureId;capture.locations[0].code='QN-LOC-550E8400';capture.tours[0].stops[0].location_id=captureId;
+   const firstResponse=await call(db,capture);expect(firstResponse.status).toBe(200);
+   // Simulate a committed create whose HTTP response is lost before the phone can clear its queue.
+   const recovered=await(await call(db)).json();
+   expect(recovered.locations.map(location=>location.id)).toEqual([captureId]);
+   const retry=await call(db,recovered);expect(retry.status).toBe(200);
+   const afterRetry=await retry.json();
+   expect(afterRetry.locations.filter(location=>location.id===captureId)).toHaveLength(1);
+   expect((await db.prepare('SELECT COUNT(*) AS count FROM scout_locations WHERE id=?').bind(captureId).first()).count).toBe(1);
+   expect(afterRetry.locations[0].photos).toHaveLength(1);
+  }finally{close();}
+ });
 });

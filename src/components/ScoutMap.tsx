@@ -9,7 +9,7 @@ import { fetchDrivingRoute, routeKey, type DrivingRoute } from '../utils/routing
 const QUAI_NHON_CENTER: [number, number] = [14.48, 109.035];
 const QUAI_NHON_DESKTOP_ZOOM = 13;
 const QUAI_NHON_MOBILE_ZOOM = 12;
-export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft, draftPoint, fitSignal, pickSignal = 0, showThumbnails = false, focusSelected = true, compactControls = false }: { locations: ScoutLocation[]; stops: HydratedTourStop[]; selectedId: string; onSelect: (id: string) => void; onCreateDraft: (point: GeoPoint) => void; draftPoint: GeoPoint | null; fitSignal: number; pickSignal?: number; showThumbnails?: boolean; focusSelected?: boolean; compactControls?: boolean }) {
+export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft, draftPoint, fitSignal, pickSignal = 0, showThumbnails = false, focusSelected = true, compactControls = false, pendingIds }: { locations: ScoutLocation[]; stops: HydratedTourStop[]; selectedId: string; onSelect: (id: string) => void; onCreateDraft: (point: GeoPoint) => void; draftPoint: GeoPoint | null; fitSignal: number; pickSignal?: number; showThumbnails?: boolean; focusSelected?: boolean; compactControls?: boolean; pendingIds?: ReadonlySet<string> }) {
   const root = useRef<HTMLDivElement>(null); const map = useRef<L.Map | null>(null);
   const [layer, setLayer] = useState<'satellite' | 'map'>('map');
   const mobileFallbackAttempted = useRef(false);
@@ -132,9 +132,10 @@ export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft
     const group = L.layerGroup().addTo(map.current);
     locations.filter(l => l.status === 'active' || stops.some(s => s.location_id === l.id)).forEach(l => {
       const stop = stops.find(s => s.location_id === l.id);
+      const pending = pendingIds?.has(l.id) || false;
       const photoUrl = showThumbnails && stop ? l.photos?.[0]?.url : undefined;
       const markerBody = document.createElement('span');
-      markerBody.className = `pin ${photoUrl ? 'route-thumb-pin' : ''} ${selectedId === l.id ? 'selected' : ''} ${!stop ? 'library-pin' : ''}`;
+      markerBody.className = `pin ${photoUrl ? 'route-thumb-pin' : ''} ${selectedId === l.id ? 'selected' : ''} ${!stop ? 'library-pin' : ''} ${pending ? 'pending' : ''}`;
       if (photoUrl) {
         const image = document.createElement('img');
         image.src = photoUrl; image.alt = ''; image.loading = 'lazy'; image.referrerPolicy = 'no-referrer';
@@ -148,15 +149,15 @@ export function ScoutMap({ locations, stops, selectedId, onSelect, onCreateDraft
         markerBody.appendChild(order);
       }
       const icon = L.divIcon({ className: 'map-marker', html: markerBody, iconSize: photoUrl ? [44, 52] : [38, 48], iconAnchor: photoUrl ? [22, 46] : [19, 46] });
-      const tooltip = document.createElement('span'); tooltip.textContent = l.name;
-      L.marker([l.coordinates.lat, l.coordinates.lng], { icon, title: l.name, keyboard: true, bubblingMouseEvents: false }).bindTooltip(tooltip, { direction: 'right', offset: [18, -20] }).on('click', () => select.current(l.id)).addTo(group);
+      const tooltip = document.createElement('span'); tooltip.textContent = pending ? `${l.name} · Chờ đồng bộ` : l.name;
+      L.marker([l.coordinates.lat, l.coordinates.lng], { icon, title: tooltip.textContent, keyboard: true, bubblingMouseEvents: false }).bindTooltip(tooltip, { direction: 'right', offset: [18, -20] }).on('click', () => select.current(l.id)).addTo(group);
     });
     if (draftPoint) {
       const icon = L.divIcon({ className: 'map-marker', html: '<span class="pin draft-pin"><span>+</span></span>', iconSize: [38, 48], iconAnchor: [19, 46] });
       L.marker([draftPoint.lat, draftPoint.lng], { icon, keyboard: false, interactive: false }).addTo(group);
     }
     return () => { group.remove(); };
-  }, [locations, stops, selectedId, draftPoint, showThumbnails]);
+  }, [locations, stops, selectedId, draftPoint, showThumbnails, pendingIds]);
   function fit() {
     const instance = map.current; if (!instance) return;
     const points = stopsRef.current.length ? stopsRef.current.map(s => s.location) : locationsRef.current.filter(l => l.status === 'active');
