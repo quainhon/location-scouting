@@ -6,7 +6,7 @@ On mobile, Quick Capture offers **Chụp ảnh** (`capture="environment"`) and *
 
 The client prepares images sequentially, strips metadata by canvas re-encoding, and reduces them to JPEG at up to 1920px on the longest edge, reducing further to fit under 1,000,000 bytes. There are at most 12 photos per location through this picker. Input files are limited to 20 MB / 48 MP. JPEG, PNG and WebP are supported; HEIC/HEIF depends on browser decoding support and produces an actionable JPEG conversion message when unavailable.
 
-Uploads precede the workspace save. On upload or workspace failure, the form retains its photos and location identity for retry while mounted. Save and media controls are disabled during preparation/upload. The UI only reports success after the workspace write succeeds. Reloading with unsaved photos uses the browser's standard before-unload guard. Draft blobs are not an offline queue and are lost if the user proceeds with reload or closes the app. Existing-place photo drafts should be saved before closing the details sheet.
+Mobile Quick Capture writes its location and photo Blobs into the IndexedDB sync queue before attempting any upload. It shows **Chờ đồng bộ** until the workspace API confirms the location, and retains the media with the queued point across reloads. The queue uploads in creation order and retries content-addressed media safely. Existing-place photo drafts are still separate: they upload when the user selects **Lưu N ảnh** and should be saved before closing the details sheet.
 
 ## Persistence and access
 

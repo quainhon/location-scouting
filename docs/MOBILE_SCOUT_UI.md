@@ -7,9 +7,10 @@ At widths up to 650px, the workspace opens directly on the map. Desktop retains 
 - + Scout opens a native dialog styled as a bottom sheet. Location permission is requested only after this action.
 - GPS failure offers retry or explicit map placement. A valid position is required; name, notes and impression are optional.
 - A generated name supplies the existing server's required name field. Ratings use `scout:rating:*` entries in the existing tags array.
-- Capture saves through the existing revision-aware workspace API. No tour is added or modified.
-- Closing the sheet retains its draft in component memory. Successful save clears it. Reloading or switching to desktop does not preserve drafts.
-- Failed saves retain the draft and its ID for retry. On a revision conflict, reload workspace data before retrying.
+- Capture first saves the point payload and photo/video Blobs to IndexedDB on this device. It can be saved without network; pending entries remain visible with **Chờ đồng bộ**.
+- When online, queued captures upload one at a time in creation order. Media uploads are content-addressed and retryable; a queue entry is removed only after the revision-aware workspace API confirms the location. The sync path reads the latest workspace before writing, so it does not blindly replay a stale snapshot after a revision conflict.
+- Reloading the app keeps queued capture data in IndexedDB. If the browser cannot open IndexedDB, offline save is disabled and the online server flow remains available.
+- A queued location cannot be edited or archived until sync is confirmed. This keeps its persisted payload and attached media together.
 
 ## Review
 
@@ -17,7 +18,7 @@ The four tabs are Map, Routes, Scouts, and Library. Routes lets you select a sav
 
 ## Scope
 
-The session control counts elapsed time and successful captures in this open mobile view. It explicitly does not record a GPS route or persist sessions. Photo capture/upload is supported (see PHOTO_UPLOAD.md). Audio, AI, offline capture/sync and undo are not implemented. Existing photo URLs remain viewable and editable. Photo storage adds one independent table and API route; production deployment is separate.
+The session control counts elapsed time and successful captures in this open mobile view. It explicitly does not record a GPS route or persist sessions. Photo capture/upload is supported (see PHOTO_UPLOAD.md). Audio, AI and undo are not implemented. Existing photo URLs remain viewable and editable. Photo storage adds one independent table and API route; production deployment is separate.
 
 ## Verification
 

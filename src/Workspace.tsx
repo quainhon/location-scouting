@@ -124,6 +124,15 @@ export function Workspace() {
     } catch (e) { setError((e as Error).message); return false; }
     finally { lock.current = false; setBusy(false); }
   }
+  async function createLocation(location: ScoutLocation): Promise<boolean> {
+    try {
+      const response = await fetch('/api/workspace');
+      if (!response.ok) throw new Error('Chưa kết nối được máy chủ để đồng bộ điểm đang chờ.');
+      const latest = await response.json() as WorkspaceData;
+      if (latest.locations.some(item => item.id === location.id)) { setData(latest); setError(''); return true; }
+      return save({ ...latest, locations: [...latest.locations, location] });
+    } catch (e) { setError((e as Error).message); return false; }
+  }
   async function updateLocation(l: ScoutLocation, action: string) {
     if (!data) return false;
     return save({ ...data, locations: data.locations.map(item => item.id === l.id ? stamp(l, action) : item) });
@@ -210,10 +219,7 @@ export function Workspace() {
       <div className="header-actions">{tour && stops.length >= 2 && <button aria-label="Xem route toàn màn hình" onClick={() => setDesktopRouteOpen(true)}><Route size={19} /><span>Route</span></button>}<button aria-label="Xem tất cả spots" onClick={browseSpots}><MapIcon size={19} /><span>Thư viện</span></button><button className="primary" onClick={() => openNewLocation()} disabled={!data || busy}><Plus size={19} /> Thêm spot</button><button className="avatar" title="Xuất bản sao dữ liệu JSON" aria-label="Xuất dữ liệu" onClick={exportData} disabled={!data}><Download size={19} /></button></div>
     </header>
     {error && <div className="error-banner" role="alert">{error}<button onClick={() => void load()} disabled={busy}>Tải lại dữ liệu</button><button className="icon-button" onClick={() => setError('')} aria-label="Đóng thông báo"><X size={16} /></button></div>}
-    {isMobile && <MobileScout locations={data?.locations || []} tours={data?.tours || []} activeTourId={tour?.id || ''} ready={!!data} busy={busy} error={error} onChooseTour={chooseTour} onCreateTour={createSelectedTour} onUpdateTour={async (next, locationId, action) => (await updateTour(next, locationId, action)) ?? false} onDelete={deleteLocation} onDeleteTour={deleteTour} onEdit={setEdit} onUpdate={updateLocation} onCreate={async location => {
-      if (!data) return false;
-      return save({ ...data, locations: [...data.locations.filter(l => l.id !== location.id), location] });
-    }} />}
+    {isMobile && <MobileScout locations={data?.locations || []} tours={data?.tours || []} activeTourId={tour?.id || ''} ready={!!data} busy={busy} error={error} onChooseTour={chooseTour} onCreateTour={createSelectedTour} onUpdateTour={async (next, locationId, action) => (await updateTour(next, locationId, action)) ?? false} onDelete={deleteLocation} onDeleteTour={deleteTour} onEdit={setEdit} onUpdate={updateLocation} onCreate={createLocation} />}
     {!isMobile && <main className={`workspace ${selected ? 'spot-open' : 'spot-closed'}`}>
       <aside className="sidebar"><div className="sidebar-heading"><h2>Điểm dừng <span>({stops.length})</span></h2><button className="mobile-only icon-button" aria-label="Thu gọn danh sách điểm" onClick={() => setMobileStops(false)}><X size={19} /></button></div>
         <div className="stops-scroll">{!data ? <Empty icon={<LoaderCircle className="spin" />} title={error ? 'Chưa kết nối' : 'Đang mở workspace'}>Dữ liệu được đọc từ database trên máy.</Empty> : stops.length === 0 ? <Empty icon={<MapPin />} title={tour ? 'Chưa có điểm' : 'Chưa có lộ trình'}>{tour ? 'Thêm spot trên bản đồ để bắt đầu.' : 'Tạo lộ trình để bắt đầu.'}</Empty> : stops.map((s, i) => <div key={s.id} draggable={!busy} onDragStart={() => { draggedStop.current = s.id; }} onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); if (!tour || busy || !draggedStop.current || draggedStop.current === s.id) return; const ids = tour.stops.map(item => item.id).filter(id => id !== draggedStop.current); ids.splice(ids.indexOf(s.id), 0, draggedStop.current); void updateTour(reorderTourStops(tour, ids)); draggedStop.current = ''; }} onDragEnd={() => { draggedStop.current = ''; }} className={`stop-card ${selectedId === s.location_id ? 'selected' : ''}`}>

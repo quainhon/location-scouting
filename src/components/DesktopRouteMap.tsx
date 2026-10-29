@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { ArrowDown, ArrowUp, Route, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ExternalLink, Route, X } from 'lucide-react';
 import type { HydratedTourStop, Tour } from '../types/scout';
 import { moveStop } from '../utils/invariants';
+import { googleMapsDirectionsUrl } from '../utils/routing';
 import { ScoutMap } from './ScoutMap';
 
 type Props = {
@@ -17,6 +18,10 @@ export function DesktopRouteMap({ tour, stops, busy, onClose, onUpdateTour }: Pr
   const [reorderOpen, setReorderOpen] = useState(false);
   const selectedStop = stops.find(stop => stop.location_id === selectedId);
   const selectedIndex = selectedStop ? stops.findIndex(stop => stop.id === selectedStop.id) : -1;
+  const routeMaps = (() => {
+    try { return { url: googleMapsDirectionsUrl(stops.map(stop => stop.location.coordinates), false), error: '' }; }
+    catch (e) { return { url: '', error: (e as Error).message }; }
+  })();
 
   return <section className="desktop-route-map-fullscreen" aria-label={`Lộ trình ${tour.title}`}>
     <ScoutMap
@@ -31,7 +36,7 @@ export function DesktopRouteMap({ tour, stops, busy, onClose, onUpdateTour }: Pr
       focusSelected={false}
     />
     <button className="desktop-route-map-close" aria-label="Thoát xem route" onClick={onClose}><X size={24} /></button>
-    <div className="desktop-route-map-title" aria-hidden="true"><Route size={16} /><span>{tour.title}</span><b>{stops.length} điểm</b></div>
+    <div className="desktop-route-map-title"><Route size={16} /><span>{tour.title}</span><b>{stops.length} điểm</b>{routeMaps.url ? <a href={routeMaps.url} target="_blank" rel="noreferrer"><ExternalLink size={15} />Mở tuyến trong Google Maps</a> : <small role="status">{routeMaps.error}</small>}</div>
     {selectedStop && <div className={`desktop-route-reorder ${reorderOpen ? 'open' : ''}`}>
       {reorderOpen && <div className="desktop-route-reorder-actions">
         <button

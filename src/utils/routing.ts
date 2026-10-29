@@ -1,7 +1,32 @@
 import type { GeoPoint } from '../types/scout';
 export interface DrivingRoute { points: [number, number][]; distance: number; duration: number; offRoad: boolean }
 export const ROUTING_BASE = 'https://routing.openstreetmap.de/routed-car/route/v1/driving/';
+export const GOOGLE_MAPS_MAX_URL_LENGTH = 2048;
+export const GOOGLE_MAPS_MOBILE_MAX_WAYPOINTS = 3;
+export const GOOGLE_MAPS_OTHER_MAX_WAYPOINTS = 9;
 export function routeKey(points: GeoPoint[]): string { return points.map(p => `${p.lng.toFixed(6)},${p.lat.toFixed(6)}`).join(';'); }
+export function googleMapsDirectionsUrl(points: GeoPoint[], mobileBrowser: boolean): string {
+  if (points.length < 2) throw new Error('Cần ít nhất 2 điểm để mở tuyến trong Google Maps.');
+  if (points.some(p => !Number.isFinite(p.lat) || Math.abs(p.lat) > 90 || !Number.isFinite(p.lng) || Math.abs(p.lng) > 180)) {
+    throw new Error('Tuyến có tọa độ không hợp lệ.');
+  }
+  const maxWaypoints = mobileBrowser ? GOOGLE_MAPS_MOBILE_MAX_WAYPOINTS : GOOGLE_MAPS_OTHER_MAX_WAYPOINTS;
+  const maxStops = maxWaypoints + 2; // origin and destination are not waypoints
+  if (points.length > maxStops) {
+    throw new Error(`Google Maps hỗ trợ tối đa ${maxStops} điểm trên trình duyệt ${mobileBrowser ? 'điện thoại' : 'này'}. Hãy mở tuyến trên máy tính hoặc chia tuyến; thứ tự điểm vẫn được giữ nguyên.`);
+  }
+  const coordinate = (point: GeoPoint) => `${point.lat.toFixed(6)},${point.lng.toFixed(6)}`;
+  const params = new URLSearchParams({
+    api: '1',
+    origin: coordinate(points[0]),
+    destination: coordinate(points[points.length - 1]),
+    travelmode: 'driving',
+  });
+  if (points.length > 2) params.set('waypoints', points.slice(1, -1).map(coordinate).join('|'));
+  const url = `https://www.google.com/maps/dir/?${params.toString()}`;
+  if (url.length > GOOGLE_MAPS_MAX_URL_LENGTH) throw new Error('Tuyến vượt quá giới hạn độ dài link Google Maps. Hãy chia tuyến thành các chặng.');
+  return url;
+}
 export function drivingUrl(points: GeoPoint[]): string {
   if (points.length < 2 || points.length > 100 || points.some(p => !Number.isFinite(p.lat) || Math.abs(p.lat) > 90 || !Number.isFinite(p.lng) || Math.abs(p.lng) > 180)) throw new Error('Tuyến cần từ 2 đến 100 điểm có tọa độ hợp lệ.');
   return `${ROUTING_BASE}${routeKey(points)}?overview=full&geometries=geojson&steps=false&alternatives=false&generate_hints=false&radiuses=${points.map(() => 1000).join(';')}`;
